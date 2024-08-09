@@ -39,15 +39,14 @@ def calcula(arg):
         primeiro_e_numero = False
     else:
         primeiro_e_numero = True
+        lista_sinais.insert(0, "+")
 
     primeiro_e_mais = True
 
     if indice_mais[0] < indice_menos[0]:
         primeiro_e_mais = True
-        lista_sinais.insert(0, "+")
     else:
         primeiro_e_mais = False
-        lista_sinais.insert(0, "-")
 
     primeiro_e_sinal = False
 
@@ -60,7 +59,7 @@ def calcula(arg):
     primeira_rodada = True
 
     for k in range (len(lista_numeros)):
-        print(expressao)
+        #print(expressao)
 
         if lista_sinais[k] == "+":
             expressao = expressao + int(lista_numeros[k])
@@ -75,6 +74,6 @@ def calcula(arg):
 if __name__ == '__main__':
     #pegando o argumento passado
     arg = sys.argv[1]
-    print(f"argumento passado: {arg}")
+    #print(f"argumento passado: {arg}")
     resultado = calcula(arg)
-    print(f"resultado: {resultado}")
+    print(resultado)
