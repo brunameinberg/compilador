@@ -1,66 +1,86 @@
 import sys
 
-def calcula(arg):
-    #removendo os espaços
-    arg = arg.replace(" ", "")
-    #pegando os dados dos sinais
-    indice_mais = [] #indice de onde estão os sinais de mais'
-    indice_menos = [] #indice de onde estão os sinais de menos
-    indice_sinais = [] #indice de onde estão os sinais
-    lista_sinais = [] #lista com os sinais
+class Token():
+    def __init__(self, type, value):
+        self.type = type  
+        self.value = value  
 
-    i = 0 
-    while i in range(len(arg)):
-        if arg[i] == "+":
-            indice_mais.append(i)
-            indice_sinais.append(i)
-            lista_sinais.append("+")
+class Tokenizer():
+    def __init__(self, source):
+        self.source = source.replace(" ", "")  # operação ""fonte""" sem espaços
+        self.position = 0  
+        self.next = None  
+        self.selectNext() 
+
+    def selectNext(self):
+    
+        # Quando acabar a operação
+        if self.position >= len(self.source):
+            self.next = Token('EOF', None) # token EOF a pedido
+            return
+
+        caractere = self.source[self.position] 
+
+        # Identifica o tipo de token e atualiza o próximo token
+        if caractere == '+':
+            self.next = Token('PLUS', '+')
+            self.position += 1
+        elif caractere == '-':
+            self.next = Token('MINUS', '-')
+            self.position += 1
+        elif caractere.isdigit():
+            value = 0
             
-        elif arg[i] == "-":
-            indice_menos.append(i)
-            indice_sinais.append(i)
-            lista_sinais.append("-")
-
-        i = i + 1
-
-    #construindo a lista de números
-    arg = arg.replace("+", " ")
-    arg = arg.replace("-", " ")
-    lista_numeros = arg.split(" ")
-
-    #lista com os indices dos números
-    indice_numeros = []
-
-    for j in range(len(lista_numeros) + len(indice_sinais)):
-        if j not in indice_sinais:
-            indice_numeros.append(j)
-
-    #checando se o primeiro elemento é um número ou um sinal
-    primeiro_e_numero = False
-       
-    if indice_sinais[0] < indice_numeros[0]:
-        primeiro_e_numero = False
-    else:
-        primeiro_e_numero = True
-        lista_sinais.insert(0, "+")
-
-
-    expressao = 0
-    for k in range (len(lista_numeros)):
-
-        if lista_sinais[k] == "+":
-            expressao = expressao + int(lista_numeros[k])
+            while self.position < len(self.source) and self.source[self.position].isdigit():
+                value = value * 10 + int(self.source[self.position]) 
+                self.position += 1
+            self.next = Token('NUMBER', value)
         else:
-            expressao = expressao - int(lista_numeros[k])
+            raise ValueError(f"caractere estranho!: {caractere}")
 
-             
-    return expressao
+class Parser():
+    def __init__(self, tokenizer):
+        self.tokenizer = tokenizer 
+        self.current_token = tokenizer.next # Token atual
+        tokenizer.selectNext() 
 
+    def parseExpression(self):
+        result = 0  
 
+        if self.current_token.type == 'NUMBER':
+            result = self.current_token.value
+            self.current_token = self.tokenizer.next 
+            self.tokenizer.selectNext()
+        else:
+            raise ValueError("A expressão deve começar com um número")
+
+        while self.current_token.type == 'PLUS' or self.current_token.type ==  'MINUS':
+            op = self.current_token.type 
+            self.current_token = self.tokenizer.next 
+            self.tokenizer.selectNext()
+            if self.current_token.type != 'NUMBER':
+                raise ValueError("Era pra ser um numero...")
+            if op == 'PLUS':
+                result += self.current_token.value
+            elif op == 'MINUS':
+                result -= self.current_token.value
+            self.current_token = self.tokenizer.next  
+            self.tokenizer.selectNext()
+
+        return result
+
+    @staticmethod
+    def run(codigo):
+        tokenizer = Tokenizer(codigo)  
+        parser = Parser(tokenizer)  
+        result = parser.parseExpression()  
+
+        if tokenizer.next.type != 'EOF':
+            raise ValueError("Erro")
+
+        return result
 
 if __name__ == '__main__':
-    #pegando o argumento passado
-    arg = sys.argv[1]
-    #print(f"argumento passado: {arg}")
-    resultado = calcula(arg)
-    print(resultado)
+    operacao = sys.argv[1]
+    result = Parser.run(operacao)
+    print(result)
