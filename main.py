@@ -7,12 +7,16 @@ class Token:
 
 class Tokenizer:
     def __init__(self, source):
-        self.source = source.replace(" ", "")  
+        #self.source = source.replace(" ", "")
+        self.source = source  
         self.position = 0  
         self.current_token = None  
         self.selectNext() 
 
     def selectNext(self):
+        while self.position < len(self.source) and self.source[self.position] == ' ':
+            self.position += 1
+
         if self.position >= len(self.source):
             self.current_token = Token('EOF', None) 
             return
@@ -32,8 +36,6 @@ class Tokenizer:
             self.current_token = Token('DIV', '/')
             self.position += 1
         elif caractere.isdigit():
-            if self.next and self.next.type == 'NUMBER':
-                raise ValueError("hmmmm cade a operação?")
             value = 0
             while self.position < len(self.source) and self.source[self.position].isdigit():
                 value = value * 10 + int(self.source[self.position]) 
