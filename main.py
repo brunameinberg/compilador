@@ -32,6 +32,8 @@ class Tokenizer:
             self.current_token = Token('DIV', '/')
             self.position += 1
         elif caractere.isdigit():
+            if self.next and self.next.type == 'NUMBER':
+                raise ValueError("hmmmm cade a operação?")
             value = 0
             while self.position < len(self.source) and self.source[self.position].isdigit():
                 value = value * 10 + int(self.source[self.position]) 
