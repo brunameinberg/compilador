@@ -7,6 +7,7 @@ class Token:
 
 class Tokenizer:
     def __init__(self, source):
+        #self.source = source.replace(" ", "")
         self.source = source  
         self.position = 0  
         self.current_token = None  
@@ -34,12 +35,6 @@ class Tokenizer:
         elif caractere == '/':
             self.current_token = Token('DIV', '/')
             self.position += 1
-        elif caractere == '(':
-            self.current_token = Token('EPARENT', '(')
-            self.position += 1
-        elif caractere == ')':
-            self.current_token = Token('DPARENT', ')')
-            self.position += 1
         elif caractere.isdigit():
             value = 0
             while self.position < len(self.source) and self.source[self.position].isdigit():
@@ -56,60 +51,53 @@ class Parser:
 
     def parseExpression(self):
         result = self.parseTerm()
+        #print(f"teste: {result}")
+
+
         while self.current_token.type == "PLUS" or self.current_token.type == "MINUS":
             op = self.current_token.type 
             self.tokenizer.selectNext() 
             self.current_token = self.tokenizer.current_token
 
+            if self.current_token.type != 'NUMBER':
+                raise ValueError("Era esperado um número.")
             if op == 'PLUS':
                 result += self.parseTerm()
             elif op == 'MINUS':
                 result -= self.parseTerm()
 
+            #print(f"teste: {result}")
+
         return result
 
     def parseTerm(self):
-        result = self.parseFactor()
+        result = 0  
+
+        if self.current_token.type == 'NUMBER':
+            result = self.current_token.value
+            self.tokenizer.selectNext()
+            self.current_token = self.tokenizer.current_token
+        else:
+            raise ValueError("A expressão deve começar com um número")
+
         while self.current_token.type == "MULT" or self.current_token.type == "DIV":
             op = self.current_token.type 
             self.tokenizer.selectNext()
             self.current_token = self.tokenizer.current_token
-
+            if self.current_token.type != 'NUMBER':
+                raise ValueError("Era esperado um número.")
             if op == 'MULT':
-                result *= self.parseFactor()
+                result *= self.current_token.value
             elif op == 'DIV':
-                divisor = self.parseFactor()
-                if divisor == 0:
+                if self.current_token.value == 0:
                     raise ValueError("Divisão por zero não permitida.")
-                result //= divisor
+                result //= self.current_token.value
+            self.tokenizer.selectNext()
+            self.current_token = self.tokenizer.current_token
+
+            #print(f"teste: {result}")
 
         return result
-
-    def parseFactor(self):
-        if self.current_token.type == 'PLUS':
-            self.tokenizer.selectNext()
-            self.current_token = self.tokenizer.current_token
-            return self.parseFactor()  # Unary plus, no change
-        elif self.current_token.type == 'MINUS':
-            self.tokenizer.selectNext()
-            self.current_token = self.tokenizer.current_token
-            return -self.parseFactor()  # Unary minus
-        elif self.current_token.type == 'NUMBER':
-            value = self.current_token.value
-            self.tokenizer.selectNext()
-            self.current_token = self.tokenizer.current_token
-            return value
-        elif self.current_token.type == 'EPARENT':
-            self.tokenizer.selectNext()
-            self.current_token = self.tokenizer.current_token
-            result = self.parseExpression()
-            if self.current_token.type != 'DPARENT':
-                raise ValueError("Erro: Esperado ')'")
-            self.tokenizer.selectNext()
-            self.current_token = self.tokenizer.current_token
-            return result
-        else:
-            raise ValueError("Erro: Token inesperado")
 
     @staticmethod
     def run(codigo):
