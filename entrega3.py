@@ -1,5 +1,4 @@
 import sys
-import os
 
 class Token:
     def __init__(self, type, value):
@@ -50,64 +49,6 @@ class Tokenizer:
         else:
             raise ValueError(f"Caractere desconhecido: {caractere}")
 
-class PrePro:
-    @staticmethod
-    def filter(source):
-        lines = source.splitlines()
-        filtered_lines = [line.split('--')[0].strip() for line in lines]
-        return ' '.join(filtered_lines)
-    
-
-class Node:
-    def __init__(self, value=None):
-        self.value = value
-        self.children = []
-
-    def Evaluate(self):
-        pass
-
-class BinOp(Node):
-    def __init__(self, value, left, right):
-        super().__init__(value)
-        self.children = [left, right]
-
-    def Evaluate(self):
-        left_value = self.children[0].Evaluate()
-        right_value = self.children[1].Evaluate()
-        if self.value == 'PLUS':
-            return left_value + right_value
-        elif self.value == 'MINUS':
-            return left_value - right_value
-        elif self.value == 'MULT':
-            return left_value * right_value
-        elif self.value == 'DIV':
-            if right_value == 0:
-                raise ValueError("Divisão por zero não permitida.")
-            return left_value // right_value
-
-class UnOp(Node):
-    def __init__(self, value, child):
-        super().__init__(value)
-        self.children = [child]
-
-    def Evaluate(self):
-        child_value = self.children[0].Evaluate()
-        if self.value == 'PLUS':
-            return child_value
-        elif self.value == 'MINUS':
-            return -child_value
-
-class IntVal(Node):
-    def __init__(self, value):
-        super().__init__(value)
-
-    def Evaluate(self):
-        return self.value
-
-class NoOp(Node):
-    def Evaluate(self):
-        return 0
-      
 class Parser:
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer 
@@ -121,9 +62,9 @@ class Parser:
             self.current_token = self.tokenizer.current_token
 
             if op == 'PLUS':
-                result = BinOp('PLUS', result, self.parseTerm())
+                result += self.parseTerm()
             elif op == 'MINUS':
-                result = BinOp('MINUS', result, self.parseTerm())
+                result -= self.parseTerm()
 
         return result
 
@@ -135,10 +76,12 @@ class Parser:
             self.current_token = self.tokenizer.current_token
 
             if op == 'MULT':
-                result = BinOp('MULT', result, self.parseFactor())
+                result *= self.parseFactor()
             elif op == 'DIV':
-                divisor_node = self.parseFactor()
-                result = BinOp('DIV', result, divisor_node)
+                divisor = self.parseFactor()
+                if divisor == 0:
+                    raise ValueError("Divisão por zero não permitida.")
+                result //= divisor
 
         return result
 
@@ -146,16 +89,16 @@ class Parser:
         if self.current_token.type == 'PLUS':
             self.tokenizer.selectNext()
             self.current_token = self.tokenizer.current_token
-            return UnOp('PLUS', self.parseFactor()) 
+            return self.parseFactor()  # Unary plus, no change
         elif self.current_token.type == 'MINUS':
             self.tokenizer.selectNext()
             self.current_token = self.tokenizer.current_token
-            return UnOp('MINUS', self.parseFactor())  
+            return -self.parseFactor()  # Unary minus
         elif self.current_token.type == 'NUMBER':
             value = self.current_token.value
             self.tokenizer.selectNext()
             self.current_token = self.tokenizer.current_token
-            return IntVal(value)
+            return value
         elif self.current_token.type == 'EPARENT':
             self.tokenizer.selectNext()
             self.current_token = self.tokenizer.current_token
@@ -170,7 +113,6 @@ class Parser:
 
     @staticmethod
     def run(codigo):
-        codigo = PrePro.filter(codigo)
         tokenizer = Tokenizer(codigo)  
         parser = Parser(tokenizer)  
         result = parser.parseExpression()  
@@ -181,12 +123,6 @@ class Parser:
         return result
 
 if __name__ == '__main__':
-
-    arquivo = sys.argv[1]
-
-    with open(arquivo, 'r') as file:
-        operacao = file.read()
-
-    ast = Parser.run(operacao)
-    resultado = ast.Evaluate()
-    print(resultado)
+    operacao = sys.argv[1]
+    result = Parser.run(operacao)
+    print(result)
