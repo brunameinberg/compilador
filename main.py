@@ -1,5 +1,7 @@
 import sys
 import os
+import re
+
 
 class Token:
     def __init__(self, type, value):
@@ -55,7 +57,11 @@ class PrePro:
     def filter(source):
         lines = source.splitlines()
         filtered_lines = [line.split('--')[0].strip() for line in lines]
-        return ' '.join(filtered_lines)
+        filtered_source = ' '.join(filtered_lines)
+        
+        filtered_source = re.sub(r'/\*.*?\*/', '', filtered_source, flags=re.DOTALL)
+        
+        return filtered_source
     
 
 class Node:
