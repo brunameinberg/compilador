@@ -56,7 +56,7 @@ class PrePro:
     @staticmethod
     def filter(source):
         lines = source.splitlines()
-        filtered_lines = [line.split('--')[0].strip() for line in lines]
+        filtered_lines = [line.split('//')[0].strip() for line in lines]
         filtered_source = ' '.join(filtered_lines)
         
         filtered_source = re.sub(r'/\*.*?\*/', '', filtered_source, flags=re.DOTALL)
