@@ -208,11 +208,11 @@ class Parser:
             return NoOp()
         elif self.tokenizer.current_token.type == 'PRINTF':
             self.tokenizer.selectNext()  # Avança para o próximo token após 'PRINTF'
-            if self.tokenizer.current_token.type != 'EPARENT':  
+            if self.tokenizer.current_token.type != 'EPARENT':
                 raise Exception("Erro: Esperado '(' após 'printf'")
             self.tokenizer.selectNext()  # Avança após '('
             expr = self.parseExpression()
-            if self.tokenizer.current_token.type != 'DPARENT': 
+            if self.tokenizer.current_token.type != 'DPARENT':
                 raise Exception("Erro: Esperado ')' após expressão em 'printf'")
             self.tokenizer.selectNext()  # Avança após ')'
             if self.tokenizer.current_token.type != 'SEMICOLON':
@@ -236,17 +236,15 @@ class Parser:
 
     def parseExpression(self):
         result = self.parseTerm()
-        while self.current_token.type == "PLUS" or self.current_token.type == "MINUS":
-            op = self.current_token.type 
-            self.tokenizer.selectNext() 
-            self.current_token = self.tokenizer.selectNext()
-
+        while self.tokenizer.current_token.type == "PLUS" or self.tokenizer.current_token.type == "MINUS":
+            op = self.tokenizer.current_token.type
+            self.tokenizer.selectNext()  # Avança após o operador
             if op == 'PLUS':
                 result = BinOp('PLUS', result, self.parseTerm())
             elif op == 'MINUS':
                 result = BinOp('MINUS', result, self.parseTerm())
-
         return result
+
 
     def parseTerm(self):
         result = self.parseFactor()
@@ -276,10 +274,10 @@ class Parser:
             op_type = self.tokenizer.current_token.type
             self.tokenizer.selectNext()
             return UnOp(op_type, self.parseFactor())
-        elif self.tokenizer.current_token.type == 'LPAREN':
+        elif self.tokenizer.current_token.type == 'EPARENT':  # Corrige para 'EPARENT' para parêntese de abertura
             self.tokenizer.selectNext()
             result = self.parseExpression()
-            if self.tokenizer.current_token.type != 'RPAREN':
+            if self.tokenizer.current_token.type != 'DPARENT':  # Corrige para 'DPARENT' para parêntese de fechamento
                 raise Exception("Erro: Esperado ')'")
             self.tokenizer.selectNext()
             return result
