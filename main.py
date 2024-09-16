@@ -203,21 +203,21 @@ class Parser:
         return statements
     
     def parseStatement(self):
-        if self.tokenizer.current_token.type == 'SEMI':
+        if self.tokenizer.current_token.type == 'SEMICOLON':
             self.tokenizer.selectNext()
             return NoOp()
         elif self.tokenizer.current_token.type == 'PRINTF':
-            self.tokenizer.selectNext()
-            if self.tokenizer.current_token.type != 'LPAREN':
+            self.tokenizer.selectNext()  # Avança para o próximo token após 'PRINTF'
+            if self.tokenizer.current_token.type != 'EPARENT':  # Corrigido para 'EPARENT'
                 raise Exception("Erro: Esperado '(' após 'printf'")
-            self.tokenizer.selectNext()
+            self.tokenizer.selectNext()  # Avança após '('
             expr = self.parseExpression()
-            if self.tokenizer.current_token.type != 'RPAREN':
+            if self.tokenizer.current_token.type != 'DPARENT':  # Corrigido para 'DPARENT'
                 raise Exception("Erro: Esperado ')' após expressão em 'printf'")
-            self.tokenizer.selectNext()
-            if self.tokenizer.current_token.type != 'SEMI':
+            self.tokenizer.selectNext()  # Avança após ')'
+            if self.tokenizer.current_token.type != 'SEMICOLON':
                 raise Exception("Erro: Esperado ';' após 'printf'")
-            self.tokenizer.selectNext()
+            self.tokenizer.selectNext()  # Avança após ';'
             return Print(expr)
         elif self.tokenizer.current_token.type == 'IDENT':
             identifier = Identifier(self.tokenizer.current_token.value)
