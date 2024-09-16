@@ -43,10 +43,10 @@ class Tokenizer:
             self.current_token = Token('DPARENT', ')')
             self.position += 1
         elif caractere == '{':
-            self.current_token = Token('LCHAVE', '{')
+            self.current_token = Token('LBRACE', '{')
             self.position += 1
         elif caractere == '}':
-            self.current_token = Token('RCHAVE', '}')
+            self.current_token = Token('RBRACE', '}')
             self.position += 1
         elif caractere.isdigit():
             value = 0
@@ -183,32 +183,39 @@ class Parser:
 
     def parseBlock(self):
         block = Block()
-        if self.current_token.type == 'LCHAVE':
+        if self.current_token.type == 'LBRACE':
             self.tokenizer.selectNext()
-            while self.current_token.type != 'RCHAVE':
+            self.current_token = self.tokenizer.current_token
+            while self.current_token.type != 'RBRACE':
                 block.children.append(self.parseStatement())
+                self.current_token = self.tokenizer.current_token
             self.tokenizer.selectNext()
         else:
             raise ValueError("Erro: Bloco esperado")
         return block
-    
+
     def parseStatement(self):
         if self.current_token.type == 'IDENTIFIER':
             identifier = Identifier(self.current_token.value)
             self.tokenizer.selectNext()
+            self.current_token = self.tokenizer.current_token
             if self.current_token.type == 'ASSIGN':
                 self.tokenizer.selectNext()
+                self.current_token = self.tokenizer.current_token
                 expression = self.parseExpression()
                 return Assignment(identifier, expression)
             else:
                 raise ValueError("Erro: '=' esperado")
         elif self.current_token.type == 'PRINTF':
             self.tokenizer.selectNext()
+            self.current_token = self.tokenizer.current_token
             if self.current_token.type == 'EPARENT':
                 self.tokenizer.selectNext()
+                self.current_token = self.tokenizer.current_token
                 expression = self.parseExpression()
                 if self.current_token.type == 'DPARENT':
                     self.tokenizer.selectNext()
+                    self.current_token = self.tokenizer.current_token
                     return Printf(expression)
                 else:
                     raise ValueError("Erro: ')' esperado após printf")
@@ -222,6 +229,8 @@ class Parser:
         while self.current_token.type == "PLUS" or self.current_token.type == "MINUS":
             op = self.current_token.type 
             self.tokenizer.selectNext() 
+            self.current_token = self.tokenizer.current_token
+
             if op == 'PLUS':
                 result = BinOp('PLUS', result, self.parseTerm())
             elif op == 'MINUS':
@@ -234,34 +243,43 @@ class Parser:
         while self.current_token.type == "MULT" or self.current_token.type == "DIV":
             op = self.current_token.type 
             self.tokenizer.selectNext()
+            self.current_token = self.tokenizer.current_token
+
             if op == 'MULT':
                 result = BinOp('MULT', result, self.parseFactor())
             elif op == 'DIV':
-                result = BinOp('DIV', result, self.parseFactor())
+                divisor_node = self.parseFactor()
+                result = BinOp('DIV', result, divisor_node)
 
         return result
 
     def parseFactor(self):
         if self.current_token.type == 'PLUS':
             self.tokenizer.selectNext()
+            self.current_token = self.tokenizer.current_token
             return UnOp('PLUS', self.parseFactor()) 
         elif self.current_token.type == 'MINUS':
             self.tokenizer.selectNext()
+            self.current_token = self.tokenizer.current_token
             return UnOp('MINUS', self.parseFactor())  
         elif self.current_token.type == 'NUMBER':
             value = self.current_token.value
             self.tokenizer.selectNext()
+            self.current_token = self.tokenizer.current_token
             return IntVal(value)
         elif self.current_token.type == 'EPARENT':
             self.tokenizer.selectNext()
+            self.current_token = self.tokenizer.current_token
             result = self.parseExpression()
             if self.current_token.type != 'DPARENT':
                 raise ValueError("Erro: Esperado ')'")
             self.tokenizer.selectNext()
+            self.current_token = self.tokenizer.current_token
             return result
         elif self.current_token.type == 'IDENTIFIER':
             identifier = Identifier(self.current_token.value)
             self.tokenizer.selectNext()
+            self.current_token = self.tokenizer.current_token
             return identifier
         else:
             raise ValueError("Erro: Token inesperado")
@@ -286,7 +304,6 @@ if __name__ == '__main__':
         operacao = file.read()
 
     symbol_table = SymbolTable()
-
     ast = Parser.run(operacao)
     resultado = ast.Evaluate(symbol_table)
     print(resultado)
