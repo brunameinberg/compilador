@@ -208,11 +208,11 @@ class Parser:
             return NoOp()
         elif self.tokenizer.current_token.type == 'PRINTF':
             self.tokenizer.selectNext()  # Avança para o próximo token após 'PRINTF'
-            if self.tokenizer.current_token.type != 'EPARENT':  # Corrigido para 'EPARENT'
+            if self.tokenizer.current_token.type != 'EPARENT':  
                 raise Exception("Erro: Esperado '(' após 'printf'")
             self.tokenizer.selectNext()  # Avança após '('
             expr = self.parseExpression()
-            if self.tokenizer.current_token.type != 'DPARENT':  # Corrigido para 'DPARENT'
+            if self.tokenizer.current_token.type != 'DPARENT': 
                 raise Exception("Erro: Esperado ')' após expressão em 'printf'")
             self.tokenizer.selectNext()  # Avança após ')'
             if self.tokenizer.current_token.type != 'SEMICOLON':
