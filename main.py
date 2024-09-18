@@ -184,7 +184,6 @@ class Statements(Node):
 class Parser:
     def __init__(self, tokenizer):
         self.tokenizer = tokenizer 
-        self.current_token = tokenizer.current_token 
 
     def parseProgram(self):
         result = self.parseBlock()
@@ -207,17 +206,17 @@ class Parser:
             self.tokenizer.selectNext()
             return NoOp()
         elif self.tokenizer.current_token.type == 'PRINTF':
-            self.tokenizer.selectNext()  # Avança para o próximo token após 'PRINTF'
+            self.tokenizer.selectNext()  
             if self.tokenizer.current_token.type != 'EPARENT':
                 raise Exception("Erro: Esperado '(' após 'printf'")
-            self.tokenizer.selectNext()  # Avança após '('
+            self.tokenizer.selectNext()  
             expr = self.parseExpression()
             if self.tokenizer.current_token.type != 'DPARENT':
                 raise Exception("Erro: Esperado ')' após expressão em 'printf'")
-            self.tokenizer.selectNext()  # Avança após ')'
+            self.tokenizer.selectNext()  
             if self.tokenizer.current_token.type != 'SEMICOLON':
                 raise Exception("Erro: Esperado ';' após 'printf'")
-            self.tokenizer.selectNext()  # Avança após ';'
+            self.tokenizer.selectNext()  
             return Print(expr)
         elif self.tokenizer.current_token.type == 'IDENT':
             identifier = Identifier(self.tokenizer.current_token.value)
@@ -238,7 +237,7 @@ class Parser:
         result = self.parseTerm()
         while self.tokenizer.current_token.type == "PLUS" or self.tokenizer.current_token.type == "MINUS":
             op = self.tokenizer.current_token.type
-            self.tokenizer.selectNext()  # Avança após o operador
+            self.tokenizer.selectNext()  
             if op == 'PLUS':
                 result = BinOp('PLUS', result, self.parseTerm())
             elif op == 'MINUS':
@@ -248,10 +247,9 @@ class Parser:
 
     def parseTerm(self):
         result = self.parseFactor()
-        while self.current_token.type == "MULT" or self.current_token.type == "DIV":
-            op = self.current_token.type 
+        while self.tokenizer.current_token.type == "MULT" or self.tokenizer.current_token.type == "DIV":
+            op = self.tokenizer.current_token.type 
             self.tokenizer.selectNext()
-            self.current_token = self.tokenizer.current_token
 
             if op == 'MULT':
                 result = BinOp('MULT', result, self.parseFactor())
@@ -274,10 +272,10 @@ class Parser:
             op_type = self.tokenizer.current_token.type
             self.tokenizer.selectNext()
             return UnOp(op_type, self.parseFactor())
-        elif self.tokenizer.current_token.type == 'EPARENT':  # Corrige para 'EPARENT' para parêntese de abertura
+        elif self.tokenizer.current_token.type == 'EPARENT':  
             self.tokenizer.selectNext()
             result = self.parseExpression()
-            if self.tokenizer.current_token.type != 'DPARENT':  # Corrige para 'DPARENT' para parêntese de fechamento
+            if self.tokenizer.current_token.type != 'DPARENT':  
                 raise Exception("Erro: Esperado ')'")
             self.tokenizer.selectNext()
             return result
