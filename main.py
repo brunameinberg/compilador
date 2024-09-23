@@ -114,6 +114,9 @@ class Tokenizer:
                 self.current_token = Token("WHILE", identifier)
             else:
                 raise Exception(f"Erro: Token inesperado: '{identifier}'")
+        elif caractere == '!':
+            self.current_token = Token('NOT', '!')
+            self.position += 1
         elif caractere.isdigit():
             start = self.position
             while self.position < len(self.source) and self.source[self.position].isdigit():
@@ -211,6 +214,8 @@ class UnOp(Node):
             return child_value
         elif self.value == 'MINUS':
             return -child_value
+        elif self.value == 'NOT':
+            return not child_value
 
 class IntVal(Node):
     def __init__(self, value):
@@ -359,7 +364,7 @@ class Parser:
 
     def parseExpression(self):
         result = self.parseTerm()
-        while self.tokenizer.current_token.type == "PLUS" or self.tokenizer.current_token.type == "MINUS" or self.tokenizer.current_token.type == "OR":
+        while self.tokenizer.current_token.type == "PLUS" or self.tokenizer.current_token.type == "MINUS" or self.tokenizer.current_token.type == "OR" or self.tokenizer.current_token.type == "NOT":
             op = self.tokenizer.current_token.type
             self.tokenizer.selectNext()  
             if op == 'PLUS':
@@ -368,6 +373,8 @@ class Parser:
                 result = BinOp('MINUS', result, self.parseTerm())
             elif op == 'OR':
                 result = BinOp('OR', result, self.parseTerm())
+            elif op == 'NOT':
+                result = UnOp('NOT', self.parseTerm())
         return result
 
 
@@ -416,6 +423,9 @@ class Parser:
                 raise Exception("Erro: Esperado ')' após 'scanf'")
             self.tokenizer.selectNext()
             return IntVal(int(input()))
+        elif self.tokenizer.current_token.type == 'NOT':
+            self.tokenizer.selectNext()
+            return UnOp('NOT', self.parseFactor())
         
         else:
             raise Exception(f"Erro: Token inesperado: '{self.tokenizer.current_token.type}'")
