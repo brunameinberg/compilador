@@ -53,67 +53,8 @@ class Tokenizer:
             self.current_token = Token('SEMICOLON', ';')
             self.position += 1
         elif caractere == '=':
-            #caso for igual igual
-            if self.position + 1 < len(self.source) and self.source[self.position + 1] == '=':
-                self.current_token = Token('EQUALEQUAL', '==')
-                self.position += 2
-            else:
-                self.current_token = Token('EQUAL', '=')
-                self.position += 1
-        elif caractere == 's':
-            start = self.position
-            while self.position < len(self.source) and self.source[self.position].isalpha():
-                self.position += 1
-            identifier = self.source[start:self.position]
-            if identifier == 'scanf':
-                self.current_token = Token("SCANF", identifier)
-            else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
-        elif caractere == '<':
-            self.current_token = Token('LESS', '<')
+            self.current_token = Token('EQUAL', '=')
             self.position += 1
-        elif caractere == '>':
-            self.current_token = Token('GREATER', '>')
-            self.position += 1
-        elif caractere == '|':
-            if self.position + 1 < len(self.source) and self.source[self.position + 1] == '|':
-                self.current_token = Token('OR', '||')
-                self.position += 2
-            else:
-                raise Exception(f"Erro: Token inesperado: '{caractere}'")
-        elif caractere == '&':
-            if self.position + 1 < len(self.source) and self.source[self.position + 1] == '&':
-                self.current_token = Token('AND', '&&')
-                self.position += 2
-            else:
-                raise Exception(f"Erro: Token inesperado: '{caractere}'")
-        elif caractere == 'i':
-            start = self.position
-            while self.position < len(self.source) and self.source[self.position].isalpha():
-                self.position += 1
-            identifier = self.source[start:self.position]
-            if identifier == 'if':
-                self.current_token = Token("IF", identifier)
-            else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
-        elif caractere == 'e':
-            start = self.position
-            while self.position < len(self.source) and self.source[self.position].isalpha():
-                self.position += 1
-            identifier = self.source[start:self.position]
-            if identifier == 'else':
-                self.current_token = Token("ELSE", identifier)
-            else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
-        elif caractere == 'w':
-            start = self.position
-            while self.position < len(self.source) and self.source[self.position].isalpha():
-                self.position += 1
-            identifier = self.source[start:self.position]
-            if identifier == 'while':
-                self.current_token = Token("WHILE", identifier)
-            else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
         elif caractere.isdigit():
             start = self.position
             while self.position < len(self.source) and self.source[self.position].isdigit():
@@ -182,16 +123,6 @@ class BinOp(Node):
             if right_value == 0:
                 raise ValueError("Divisão por zero não permitida.")
             return left_value // right_value
-        elif self.value == 'EQUALEQUAL':
-            return left_value == right_value
-        elif self.value == 'LESS':
-            return left_value < right_value
-        elif self.value == 'GREATER':
-            return left_value > right_value
-        elif self.value == 'OR':
-            return left_value or right_value
-        elif self.value == 'AND':
-            return left_value and right_value
 
 class UnOp(Node):
     def __init__(self, value, child):
@@ -247,7 +178,8 @@ class Statements(Node):
     def Evaluate(self, symbol_table):
         for statement in self.statements:
             statement.Evaluate(symbol_table)
-        
+
+
 
 class Parser:
     def __init__(self, tokenizer):
@@ -278,7 +210,7 @@ class Parser:
             if self.tokenizer.current_token.type != 'EPARENT':
                 raise Exception("Erro: Esperado '(' após 'printf'")
             self.tokenizer.selectNext()  
-            expr = self.parseRelational()
+            expr = self.parseExpression()
             if self.tokenizer.current_token.type != 'DPARENT':
                 raise Exception("Erro: Esperado ')' após expressão em 'printf'")
             self.tokenizer.selectNext()  
@@ -292,36 +224,11 @@ class Parser:
             if self.tokenizer.current_token.type != 'EQUAL':
                 raise Exception("Erro: Esperado '=' após identificador")
             self.tokenizer.selectNext()
-            expr = self.parseRelational()
+            expr = self.parseExpression()
             if self.tokenizer.current_token.type != 'SEMICOLON':
                 raise Exception("Erro: Esperado ';' após expressão")
             self.tokenizer.selectNext()
             return Assignment(identifier, expr)
-        elif self.tokenizer.current_token.type == 'IF':
-            self.tokenizer.selectNext()  
-            if self.tokenizer.current_token.type != 'EPARENT':
-                raise Exception("Erro: Esperado '(' após 'if'")
-            self.tokenizer.selectNext()  
-            condition = self.parseRelational()
-            if self.tokenizer.current_token.type != 'DPARENT':
-                raise Exception("Erro: Esperado ')' após expressão em 'if'")
-            self.tokenizer.selectNext()
-            if_block = self.parseBlock()
-            if self.tokenizer.current_token.type == 'ELSE':
-                self.tokenizer.selectNext()  
-                else_block = self.parseBlock()
-            return if_block
-        elif self.tokenizer.current_token.type == 'WHILE':
-            self.tokenizer.selectNext()  
-            if self.tokenizer.current_token.type != 'EPARENT':
-                raise Exception("Erro: Esperado '(' após 'while'")
-            self.tokenizer.selectNext()  
-            condition = self.parseRelational()
-            if self.tokenizer.current_token.type != 'DPARENT':
-                raise Exception("Erro: Esperado ')' após expressão em 'while'")
-            self.tokenizer.selectNext()  
-            block = self.parseBlock()
-            return block
         else:
             raise Exception(f"Erro: Declaração inválida: '{self.tokenizer.current_token.value}'")
 
@@ -335,8 +242,6 @@ class Parser:
                 result = BinOp('PLUS', result, self.parseTerm())
             elif op == 'MINUS':
                 result = BinOp('MINUS', result, self.parseTerm())
-            elif op == 'OR':
-                result = BinOp('OR', result, self.parseTerm())
         return result
 
 
@@ -351,8 +256,6 @@ class Parser:
             elif op == 'DIV':
                 divisor_node = self.parseFactor()
                 result = BinOp('DIV', result, divisor_node)
-            elif op == 'AND':
-                result = BinOp('AND', result, self.parseFactor())
 
         return result
 
@@ -376,27 +279,8 @@ class Parser:
                 raise Exception("Erro: Esperado ')'")
             self.tokenizer.selectNext()
             return result
-        elif self.tokenizer.current_token.type == 'SCANF':
-            self.tokenizer.selectNext()
-            if self.tokenizer.current_token.type != 'EPARENT':
-                raise Exception("Erro: Esperado '(' após 'scanf'")
-            self.tokenizer.selectNext()
-            if self.tokenizer.current_token.type != 'DPARENT':
-                raise Exception("Erro: Esperado ')' após 'scanf'")
-            self.tokenizer.selectNext()
-            return IntVal(int(input()))
-        
         else:
             raise Exception(f"Erro: Token inesperado: '{self.tokenizer.current_token.type}'")
-
-    def parseRelational(self):
-        result = self.parseExpression()
-        if self.tokenizer.current_token.type in ['EQUALEQUAL', 'LESS', 'GREATER']:
-            op = self.tokenizer.current_token.type
-            self.tokenizer.selectNext()
-            result = BinOp(op, result, self.parseExpression())
-        return result
-
 
     @staticmethod
     def run(codigo):
