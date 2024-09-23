@@ -359,7 +359,7 @@ class Parser:
 
     def parseExpression(self):
         result = self.parseTerm()
-        while self.tokenizer.current_token.type == "PLUS" or self.tokenizer.current_token.type == "MINUS":
+        while self.tokenizer.current_token.type == "PLUS" or self.tokenizer.current_token.type == "MINUS" or self.tokenizer.current_token.type == "OR":
             op = self.tokenizer.current_token.type
             self.tokenizer.selectNext()  
             if op == 'PLUS':
@@ -373,7 +373,7 @@ class Parser:
 
     def parseTerm(self):
         result = self.parseFactor()
-        while self.tokenizer.current_token.type == "MULT" or self.tokenizer.current_token.type == "DIV":
+        while self.tokenizer.current_token.type == "MULT" or self.tokenizer.current_token.type == "DIV" or self.tokenizer.current_token.type == "AND":
             op = self.tokenizer.current_token.type 
             self.tokenizer.selectNext()
 
@@ -402,7 +402,7 @@ class Parser:
             return UnOp(op_type, self.parseFactor())
         elif self.tokenizer.current_token.type == 'EPARENT':  
             self.tokenizer.selectNext()
-            result = self.parseExpression()
+            result = self.parseRelational()
             if self.tokenizer.current_token.type != 'DPARENT':  
                 raise Exception("Erro: Esperado ')'")
             self.tokenizer.selectNext()
