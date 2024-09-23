@@ -306,10 +306,10 @@ class Parser:
             if self.tokenizer.current_token.type != 'DPARENT':
                 raise Exception("Erro: Esperado ')' após expressão em 'if'")
             self.tokenizer.selectNext()
-            if_block = self.parseBlock()
+            if_block = self.parseStatement()
             if self.tokenizer.current_token.type == 'ELSE':
                 self.tokenizer.selectNext()  
-                else_block = self.parseBlock()
+                else_block = self.parseStatement()
             return if_block
         elif self.tokenizer.current_token.type == 'WHILE':
             self.tokenizer.selectNext()  
@@ -322,6 +322,8 @@ class Parser:
             self.tokenizer.selectNext()  
             block = self.parseBlock()
             return block
+        elif self.tokenizer.current_token.type == 'LBRACE':
+            return self.parseBlock()
         else:
             raise Exception(f"Erro: Declaração inválida: '{self.tokenizer.current_token.value}'")
 
