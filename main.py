@@ -185,13 +185,20 @@ class BinOp(Node):
         elif self.value == 'EQUALEQUAL':
             return left_value == right_value
         elif self.value == 'LESS':
-            return left_value > right_value
-        elif self.value == 'GREATER':
             return left_value < right_value
+        elif self.value == 'GREATER':
+            return left_value > right_value
         elif self.value == 'OR':
             return left_value or right_value
         elif self.value == 'AND':
             return left_value and right_value
+        elif self.value == 'WHILE':
+            while self.children[0].Evaluate(symbol_table):  # Verifica a condição
+                self.children[1].Evaluate(symbol_table)  # Executa o bloco
+            return 0  # Ao terminar o loop, retorna 0 ou algo neutro
+
+        else:
+            raise Exception(f"Operador desconhecido: {self.value}")
 
 class UnOp(Node):
     def __init__(self, value, child):
@@ -247,6 +254,20 @@ class Statements(Node):
     def Evaluate(self, symbol_table):
         for statement in self.statements:
             statement.Evaluate(symbol_table)
+
+class If(Node):
+    def __init__(self, condition, if_block, else_block=None):
+        super().__init__('IF')
+        self.condition = condition
+        self.if_block = if_block
+        self.else_block = else_block
+
+    def Evaluate(self, symbol_table):
+        if self.condition.Evaluate(symbol_table):  
+            return self.if_block.Evaluate(symbol_table)
+        elif self.else_block:  
+            return self.else_block.Evaluate(symbol_table)
+        return 0  
         
 
 class Parser:
@@ -306,11 +327,16 @@ class Parser:
             if self.tokenizer.current_token.type != 'DPARENT':
                 raise Exception("Erro: Esperado ')' após expressão em 'if'")
             self.tokenizer.selectNext()
-            if_block = self.parseStatement()
+            
+            if_block = self.parseStatement() if self.tokenizer.current_token.type != 'LBRACE' else self.parseBlock()
+
+            else_block = None
             if self.tokenizer.current_token.type == 'ELSE':
-                self.tokenizer.selectNext()  
-                else_block = self.parseStatement()
-            return if_block
+                self.tokenizer.selectNext()
+                # Após o 'else', pode vir um bloco ou um statement
+                else_block = self.parseStatement() if self.tokenizer.current_token.type != 'LBRACE' else self.parseBlock()
+
+            return If(condition, if_block, else_block)
         elif self.tokenizer.current_token.type == 'WHILE':
             self.tokenizer.selectNext()  
             if self.tokenizer.current_token.type != 'EPARENT':
@@ -319,9 +345,12 @@ class Parser:
             condition = self.parseRelational()
             if self.tokenizer.current_token.type != 'DPARENT':
                 raise Exception("Erro: Esperado ')' após expressão em 'while'")
-            self.tokenizer.selectNext()  
-            block = self.parseBlock()
-            return block
+            self.tokenizer.selectNext()
+            
+            # Após o 'while', pode vir um bloco ou um statement
+            block = self.parseStatement() if self.tokenizer.current_token.type != 'LBRACE' else self.parseBlock()
+            
+            return BinOp('WHILE', condition, block)
         elif self.tokenizer.current_token.type == 'LBRACE':
             return self.parseBlock()
         else:
