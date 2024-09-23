@@ -185,9 +185,9 @@ class BinOp(Node):
         elif self.value == 'EQUALEQUAL':
             return left_value == right_value
         elif self.value == 'LESS':
-            return left_value < right_value
-        elif self.value == 'GREATER':
             return left_value > right_value
+        elif self.value == 'GREATER':
+            return left_value < right_value
         elif self.value == 'OR':
             return left_value or right_value
         elif self.value == 'AND':
