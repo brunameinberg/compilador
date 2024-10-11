@@ -94,8 +94,6 @@ class Tokenizer:
             identifier = self.source[start:self.position]
             if identifier == 'if':
                 self.current_token = Token("IF", identifier)
-            elif identifier == 'int':
-                self.current_token = Token("INT", identifier)
             else:
                 raise Exception(f"Erro: Token inesperado: '{identifier}'")
         elif caractere == 'e':
@@ -119,28 +117,6 @@ class Tokenizer:
         elif caractere == '!':
             self.current_token = Token('NOT', '!')
             self.position += 1
-        elif caractere == 's':
-            start = self.position
-            while self.position < len(self.source) and self.source[self.position].isalpha():
-                self.position += 1
-            identifier = self.source[start:self.position]
-            if identifier == 'string':
-                self.current_token = Token("STRING", identifier)
-            else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
-        elif caractere == 'b':
-            start = self.position
-            while self.position < len(self.source) and self.source[self.position].isalpha():
-                self.position += 1
-            identifier = self.source[start:self.position]
-            if identifier == 'bool':
-                self.current_token = Token("BOOL", identifier)
-            else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
-        elif caractere == ',':
-            self.current_token = Token("COMMA", identifier)
-            self.position += 1
-
         elif caractere.isdigit():
             start = self.position
             while self.position < len(self.source) and self.source[self.position].isdigit():
@@ -180,19 +156,8 @@ class SymbolTable:
         else:
             raise Exception(f"Erro: Identificador '{identifier}' não encontrado")
 
-    def setter(self, identifier, value, var_type):
-        if not isinstance(value, var_type):
-            raise Exception(f"Erro: O valor '{value}' não corresponde ao tipo '{var_type.__name__}'")
-        self.table[identifier] = (value, var_type)
-
-    def check_type(self, identifier, expected_type):
-        if identifier in self.table:
-            _, stored_type = self.table[identifier]
-            if stored_type != expected_type:
-                raise Exception(f"Erro: Tipo incorreto. Esperado '{expected_type.__name__}', mas obtido '{stored_type.__name__}'")
-        else:
-            raise Exception(f"Erro: Identificador '{identifier}' não encontrado")
-
+    def setter(self, identifier, value):
+        self.table[identifier] = value
 
 class Node:
     def __init__(self, value=None):
@@ -391,25 +356,6 @@ class Parser:
             block = self.parseStatement() if self.tokenizer.current_token.type != 'LBRACE' else self.parseBlock()
             
             return BinOp('WHILE', condition, block)
-        elif self.tokenizer.current_token.type == 'INT':
-            self.tokenizer.selectNext() 
-            if self.tokenizer.current_token.type == 'IDENT':
-                identifier = Identifier(self.tokenizer.current_token.value)
-                self.tokenizer.selectNext()
-            if self.tokenizer.current_token.type != 'EQUAL':
-                if self.tokenizer.current_token.type == "COMMA":
-                    if self.tokenizer.current_token.type == 'IDENT':
-                        identifier = Identifier(self.tokenizer.current_token.value)
-                        self.tokenizer.selectNext()
-
-            else:
-                self.tokenizer.selectNext()
-                expr = self.parseRelational()
-                if self.tokenizer.current_token.type != 'SEMICOLON':
-                    raise Exception("Erro: Esperado ';' após expressão")
-                self.tokenizer.selectNext()
-            return Assignment(identifier, expr)
-
         elif self.tokenizer.current_token.type == 'LBRACE':
             return self.parseBlock()
         else:
@@ -480,9 +426,7 @@ class Parser:
         elif self.tokenizer.current_token.type == 'NOT':
             self.tokenizer.selectNext()
             return UnOp('NOT', self.parseFactor())
-        elif self.tokenizer.current_token.type == 'STRING':
-            self.tokenizer.selectNext()
-            return result
+        
         else:
             raise Exception(f"Erro: Token inesperado: '{self.tokenizer.current_token.type}'")
 
