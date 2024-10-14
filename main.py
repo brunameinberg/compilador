@@ -95,7 +95,7 @@ class Tokenizer:
             if identifier == 'if':
                 self.current_token = Token("IF", identifier)
             elif identifier == 'int':
-                self.current_token = Token("INT", identifier)
+                self.current_token = Token("INT_TYPE", identifier)
             else:
                 raise Exception(f"Erro: Token inesperado: '{identifier}'")
         elif caractere == 'e':
@@ -119,26 +119,38 @@ class Tokenizer:
         elif caractere == '!':
             self.current_token = Token('NOT', '!')
             self.position += 1
+        
+        elif caractere == '"':
+            start = self.position + 1
+            end = self.source.find('"', start)
+            if end == -1:
+                raise Exception("Erro: String não fechada")
+            string_value = self.source[start:end]
+            self.current_token = Token("STRING", string_value)
+            self.position = end + 1
+
         elif caractere == 's':
             start = self.position
             while self.position < len(self.source) and self.source[self.position].isalpha():
                 self.position += 1
             identifier = self.source[start:self.position]
             if identifier == 'string':
-                self.current_token = Token("STRING", identifier)
+                self.current_token = Token("STRING_TYPE", identifier)  # Identificamos o tipo string
             else:
                 raise Exception(f"Erro: Token inesperado: '{identifier}'")
+
         elif caractere == 'b':
             start = self.position
             while self.position < len(self.source) and self.source[self.position].isalpha():
                 self.position += 1
             identifier = self.source[start:self.position]
             if identifier == 'bool':
-                self.current_token = Token("BOOL", identifier)
+                self.current_token = Token("BOOL_TYPE", identifier)  # Identificamos o tipo bool
             else:
                 raise Exception(f"Erro: Token inesperado: '{identifier}'")
+
         elif caractere == ',':
-            self.current_token = Token("COMMA", identifier)
+            self.current_token = Token("COMMA", ',')  # Corrigimos para retornar um token de vírgula corretamente
             self.position += 1
 
         elif caractere.isdigit():
@@ -308,7 +320,26 @@ class If(Node):
         elif self.else_block:  
             return self.else_block.Evaluate(symbol_table)
         return 0  
-        
+
+class VarDec(Node):
+    def __init__(self, var_type, identifiers, expressions=None):
+        super().__init__()
+        self.var_type = var_type
+        self.identifiers = identifiers
+        self.expressions = expressions or []
+
+    def Evaluate(self, symbol_table):
+        for i, identifier in enumerate(self.identifiers):
+            if identifier.value in symbol_table.table:
+                raise Exception(f"Erro: Variável '{identifier.value}' já foi declarada")
+            if i < len(self.expressions):
+                value = self.expressions[i].Evaluate(symbol_table)
+                if not isinstance(value, self.var_type):
+                    raise Exception(f"Erro: Tipo incompatível para '{identifier.value}'")
+                symbol_table.setter(identifier.value, value, self.var_type)
+            else:
+                symbol_table.setter(identifier.value, None, self.var_type)
+       
 
 class Parser:
     def __init__(self, tokenizer):
@@ -331,9 +362,11 @@ class Parser:
         return statements
     
     def parseStatement(self):
+
         if self.tokenizer.current_token.type == 'SEMICOLON':
             self.tokenizer.selectNext()
             return NoOp()
+        
         elif self.tokenizer.current_token.type == 'PRINTF':
             self.tokenizer.selectNext()  
             if self.tokenizer.current_token.type != 'EPARENT':
@@ -347,6 +380,7 @@ class Parser:
                 raise Exception("Erro: Esperado ';' após 'printf'")
             self.tokenizer.selectNext()  
             return Print(expr)
+        
         elif self.tokenizer.current_token.type == 'IDENT':
             identifier = Identifier(self.tokenizer.current_token.value)
             self.tokenizer.selectNext()
@@ -358,6 +392,7 @@ class Parser:
                 raise Exception("Erro: Esperado ';' após expressão")
             self.tokenizer.selectNext()
             return Assignment(identifier, expr)
+        
         elif self.tokenizer.current_token.type == 'IF':
             self.tokenizer.selectNext()  
             if self.tokenizer.current_token.type != 'EPARENT':
@@ -377,6 +412,7 @@ class Parser:
                 else_block = self.parseStatement() if self.tokenizer.current_token.type != 'LBRACE' else self.parseBlock()
 
             return If(condition, if_block, else_block)
+        
         elif self.tokenizer.current_token.type == 'WHILE':
             self.tokenizer.selectNext()  
             if self.tokenizer.current_token.type != 'EPARENT':
@@ -391,24 +427,39 @@ class Parser:
             block = self.parseStatement() if self.tokenizer.current_token.type != 'LBRACE' else self.parseBlock()
             
             return BinOp('WHILE', condition, block)
-        elif self.tokenizer.current_token.type == 'INT':
-            self.tokenizer.selectNext() 
-            if self.tokenizer.current_token.type == 'IDENT':
+        
+        elif self.tokenizer.current_token.type == 'INT_TYPE':
+            # Declaração de variáveis com ou sem inicialização
+            self.tokenizer.selectNext()  # Consumir 'int'
+            identifiers = []
+            expressions = []
+            
+            while self.tokenizer.current_token.type == 'IDENT':
                 identifier = Identifier(self.tokenizer.current_token.value)
+                identifiers.append(identifier)
                 self.tokenizer.selectNext()
-            if self.tokenizer.current_token.type != 'EQUAL':
-                if self.tokenizer.current_token.type == "COMMA":
-                    if self.tokenizer.current_token.type == 'IDENT':
-                        identifier = Identifier(self.tokenizer.current_token.value)
-                        self.tokenizer.selectNext()
+                
+                # Verificar se há atribuição
+                if self.tokenizer.current_token.type == 'EQUAL':
+                    self.tokenizer.selectNext()
+                    expr = self.parseRelational()
+                    expressions.append(expr)
+                else:
+                    expressions.append(None)  # Variável sem inicialização
+                
+                # Verificar se há uma vírgula ou ponto e vírgula
+                if self.tokenizer.current_token.type == 'COMMA':
+                    self.tokenizer.selectNext()  # Consumir vírgula e continuar para a próxima variável
+                else:
+                    break
+            
+            if self.tokenizer.current_token.type != 'SEMICOLON':
+                raise Exception("Erro: Esperado ';' após declaração de variável")
+            
+            self.tokenizer.selectNext()  # Consumir ponto e vírgula
 
-            else:
-                self.tokenizer.selectNext()
-                expr = self.parseRelational()
-                if self.tokenizer.current_token.type != 'SEMICOLON':
-                    raise Exception("Erro: Esperado ';' após expressão")
-                self.tokenizer.selectNext()
-            return Assignment(identifier, expr)
+            # Retornar a declaração como um VarDec
+            return VarDec(int, identifiers, expressions)
 
         elif self.tokenizer.current_token.type == 'LBRACE':
             return self.parseBlock()
