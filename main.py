@@ -272,7 +272,8 @@ class Identifier(Node):
         self.value = value
 
     def Evaluate(self, symbol_table):
-        return symbol_table.getter(self.value)
+        value, _ = symbol_table.getter(self.value)  # Extrai apenas o valor da tupla
+        return value
     
 class Assignment(Node):
     def __init__(self, identifier, expression):
@@ -281,7 +282,8 @@ class Assignment(Node):
 
     def Evaluate(self, symbol_table):
         value = self.expression.Evaluate(symbol_table)
-        symbol_table.setter(self.identifier.value, value)
+        _, var_type = symbol_table.getter(self.identifier.value)
+        symbol_table.setter(self.identifier.value, value, var_type)
 
 class Print(Node):
     def __init__(self, expression):
@@ -332,8 +334,8 @@ class VarDec(Node):
                     raise Exception(f"Erro: Tipo incompatível para '{identifier.value}'")
                 symbol_table.setter(identifier.value, value, self.var_type)
             else:
-                # Inicializar como None (ou um valor padrão) se não houver expressão
-                symbol_table.setter(identifier.value, None, self.var_type)
+                initial_value = 0 if self.var_type == int else None
+                symbol_table.setter(identifier.value, initial_value, self.var_type)
 
 class Parser:
     def __init__(self, tokenizer):
@@ -356,6 +358,9 @@ class Parser:
         return statements
     
     def parseStatement(self):
+
+        if self.tokenizer.current_token.type == 'LBRACE':
+            return self.parseBlock()
 
         if self.tokenizer.current_token.type == 'SEMICOLON':
             self.tokenizer.selectNext()
@@ -397,13 +402,13 @@ class Parser:
                 raise Exception("Erro: Esperado ')' após expressão em 'if'")
             self.tokenizer.selectNext()
             
-            if_block = self.parseStatement() if self.tokenizer.current_token.type != 'LBRACE' else self.parseBlock()
+            if_block = self.parseBlock() if self.tokenizer.current_token.type == 'LBRACE' else self.parseStatement()
 
             else_block = None
+
             if self.tokenizer.current_token.type == 'ELSE':
                 self.tokenizer.selectNext()
-                # Após o 'else', pode vir um bloco ou um statement
-                else_block = self.parseStatement() if self.tokenizer.current_token.type != 'LBRACE' else self.parseBlock()
+                else_block = self.parseBlock() if self.tokenizer.current_token.type == 'LBRACE' else self.parseStatement()
 
             return If(condition, if_block, else_block)
         
@@ -422,41 +427,49 @@ class Parser:
             
             return BinOp('WHILE', condition, block)
         
-        elif self.tokenizer.current_token.type == 'INT_TYPE':
+        if self.tokenizer.current_token.type == 'INT_TYPE':
+            var_type = int
             self.tokenizer.selectNext()  
-            identifiers = []
-            expressions = []
-            
-            while self.tokenizer.current_token.type == 'IDENT':
-                identifier = Identifier(self.tokenizer.current_token.value)
-                identifiers.append(identifier)
+        elif self.tokenizer.current_token.type == 'STRING_TYPE':
+            var_type = str
+            self.tokenizer.selectNext()  
+        elif self.tokenizer.current_token.type == 'BOOL_TYPE':
+            var_type = bool
+            self.tokenizer.selectNext()
+        else:
+            raise Exception(f"Erro: Tipo de variável inválido: {self.tokenizer.current_token.type}")
+
+        identifiers = []
+        expressions = []
+
+        while self.tokenizer.current_token.type == 'IDENT':
+            identifier = Identifier(self.tokenizer.current_token.value)
+            identifiers.append(identifier)
+            self.tokenizer.selectNext()
+
+            if self.tokenizer.current_token.type == 'EQUAL':
                 self.tokenizer.selectNext()
-                
-                if self.tokenizer.current_token.type == 'EQUAL':
-                    self.tokenizer.selectNext()
-                    expr = self.parseRelational()
-                    expressions.append(expr)
-                else:
-                    expressions.append(None) 
-                
-                # Verificar se há uma vírgula ou ponto e vírgula
-                if self.tokenizer.current_token.type == 'COMMA':
-                    self.tokenizer.selectNext()  # Consumir vírgula e continuar para a próxima variável
-                elif self.tokenizer.current_token.type == 'SEMICOLON':
-                    break  # Ponto e vírgula, fim da declaração
-                else:
-                    raise Exception(f"Erro: Esperado ',' ou ';', mas encontrado '{self.tokenizer.current_token.value}'")
-            
-            
-            if self.tokenizer.current_token.type != 'SEMICOLON':
-                raise Exception("Erro: Esperado ';' após declaração de variável")
-            
-            self.tokenizer.selectNext()  # Consumir ponto e vírgula
+                expr = self.parseRelational()  # Avalia a expressão associada
+                expressions.append(expr)
+            else:
+                expressions.append(None)  # Variável sem inicialização
 
-            # Retornar a declaração como um VarDec
-            return VarDec(int, identifiers, expressions)
+            if self.tokenizer.current_token.type == 'COMMA':
+                self.tokenizer.selectNext()  # Continuar declarando mais variáveis
+            elif self.tokenizer.current_token.type == 'SEMICOLON':
+                break  # Fim da declaração
+            else:
+                raise Exception(f"Erro: Esperado ',' ou ';', mas encontrado '{self.tokenizer.current_token.value}'")
 
-        elif self.tokenizer.current_token.type == 'LBRACE':
+        if self.tokenizer.current_token.type != 'SEMICOLON':
+            raise Exception("Erro: Esperado ';' após declaração de variável")
+
+        self.tokenizer.selectNext()  # Consumir o ponto e vírgula
+
+        return VarDec(var_type, identifiers, expressions)
+
+        # Verifica se o próximo token é uma chave de abertura
+        if self.tokenizer.current_token.type == 'LBRACE':
             return self.parseBlock()
         else:
             raise Exception(f"Erro: Declaração inválida: '{self.tokenizer.current_token.value}'")
