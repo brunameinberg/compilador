@@ -67,6 +67,8 @@ class Tokenizer:
             identifier = self.source[start:self.position]
             if identifier == 'scanf':
                 self.current_token = Token("SCANF", identifier)
+            elif identifier == 'string':
+                self.current_token = Token("STRING_TYPE", identifier)
             else:
                 raise Exception(f"Erro: Token inesperado: '{identifier}'")
         elif caractere == '<':
@@ -128,16 +130,6 @@ class Tokenizer:
             string_value = self.source[start:end]
             self.current_token = Token("STRING", string_value)
             self.position = end + 1
-
-        elif caractere == 's':
-            start = self.position
-            while self.position < len(self.source) and self.source[self.position].isalpha():
-                self.position += 1
-            identifier = self.source[start:self.position]
-            if identifier == 'string':
-                self.current_token = Token("STRING_TYPE", identifier)  # Identificamos o tipo string
-            else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
 
         elif caractere == 'b':
             start = self.position
@@ -332,14 +324,16 @@ class VarDec(Node):
         for i, identifier in enumerate(self.identifiers):
             if identifier.value in symbol_table.table:
                 raise Exception(f"Erro: Variável '{identifier.value}' já foi declarada")
-            if i < len(self.expressions):
+            
+            # Verificar se há expressão associada
+            if i < len(self.expressions) and self.expressions[i] is not None:
                 value = self.expressions[i].Evaluate(symbol_table)
                 if not isinstance(value, self.var_type):
                     raise Exception(f"Erro: Tipo incompatível para '{identifier.value}'")
                 symbol_table.setter(identifier.value, value, self.var_type)
             else:
+                # Inicializar como None (ou um valor padrão) se não houver expressão
                 symbol_table.setter(identifier.value, None, self.var_type)
-       
 
 class Parser:
     def __init__(self, tokenizer):
@@ -429,8 +423,7 @@ class Parser:
             return BinOp('WHILE', condition, block)
         
         elif self.tokenizer.current_token.type == 'INT_TYPE':
-            # Declaração de variáveis com ou sem inicialização
-            self.tokenizer.selectNext()  # Consumir 'int'
+            self.tokenizer.selectNext()  
             identifiers = []
             expressions = []
             
@@ -439,19 +432,21 @@ class Parser:
                 identifiers.append(identifier)
                 self.tokenizer.selectNext()
                 
-                # Verificar se há atribuição
                 if self.tokenizer.current_token.type == 'EQUAL':
                     self.tokenizer.selectNext()
                     expr = self.parseRelational()
                     expressions.append(expr)
                 else:
-                    expressions.append(None)  # Variável sem inicialização
+                    expressions.append(None) 
                 
                 # Verificar se há uma vírgula ou ponto e vírgula
                 if self.tokenizer.current_token.type == 'COMMA':
                     self.tokenizer.selectNext()  # Consumir vírgula e continuar para a próxima variável
+                elif self.tokenizer.current_token.type == 'SEMICOLON':
+                    break  # Ponto e vírgula, fim da declaração
                 else:
-                    break
+                    raise Exception(f"Erro: Esperado ',' ou ';', mas encontrado '{self.tokenizer.current_token.value}'")
+            
             
             if self.tokenizer.current_token.type != 'SEMICOLON':
                 raise Exception("Erro: Esperado ';' após declaração de variável")
