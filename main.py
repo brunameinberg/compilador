@@ -139,7 +139,7 @@ class Tokenizer:
             if identifier == 'bool':
                 self.current_token = Token("BOOL_TYPE", identifier)  # Identificamos o tipo bool
             else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
+                self.current_token = Token("IDENT", identifier)
 
         elif caractere == ',':
             self.current_token = Token("COMMA", ',')  # Corrigimos para retornar um token de vírgula corretamente
@@ -291,6 +291,10 @@ class Print(Node):
 
     def Evaluate(self, symbol_table):
         value = self.expression.Evaluate(symbol_table)
+
+        if isinstance(value, bool):
+            value = int(value)
+        
         print(f"{value}")
 
 class Statements(Node):
@@ -336,6 +340,14 @@ class VarDec(Node):
             else:
                 initial_value = 0 if self.var_type == int else None
                 symbol_table.setter(identifier.value, initial_value, self.var_type)
+
+class StringVal(Node):
+    def __init__(self, value):
+        super().__init__(value)
+
+    def Evaluate(self, symbol_table):
+        return self.value
+
 
 class Parser:
     def __init__(self, tokenizer):
@@ -540,6 +552,7 @@ class Parser:
             self.tokenizer.selectNext()
             return UnOp('NOT', self.parseFactor())
         elif self.tokenizer.current_token.type == 'STRING':
+            result = StringVal(self.tokenizer.current_token.value)  # Cria um nó para a string
             self.tokenizer.selectNext()
             return result
         else:
