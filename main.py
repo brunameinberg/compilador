@@ -67,7 +67,7 @@ class Tokenizer:
             identifier = self.source[start:self.position]
             if identifier == 'scanf':
                 self.current_token = Token("SCANF", identifier)
-            elif identifier == 'string':
+            elif identifier == 'string' or identifier == 'str':
                 self.current_token = Token("STRING_TYPE", identifier)
             else:
                 raise Exception(f"Erro: Token inesperado: '{identifier}'")
