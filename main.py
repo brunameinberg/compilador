@@ -108,7 +108,7 @@ class Tokenizer:
             if identifier == 'else':
                 self.current_token = Token("ELSE", identifier)
             else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
+                self.current_token = Token("IDENT", identifier)
         elif caractere == 'w':
             start = self.position
             while self.position < len(self.source) and self.source[self.position].isalpha():
@@ -219,31 +219,46 @@ class BinOp(Node):
             left_value = 1 if left_value else 0
         if isinstance(right_value, bool):
             right_value = 1 if right_value else 0
-            
+
         if self.value == 'PLUS':
 
             if isinstance(left_value, str) or isinstance(right_value, str):
                 return str(left_value) + str(right_value)
 
             return left_value + right_value
+        
         elif self.value == 'MINUS':
             return left_value - right_value
+        
         elif self.value == 'MULT':
             return left_value * right_value
+        
         elif self.value == 'DIV':
             if right_value == 0:
                 raise ValueError("Divisão por zero não permitida.")
             return left_value // right_value
+        
         elif self.value == 'EQUALEQUAL':
+            if type(left_value) != type(right_value):
+                raise Exception(f"Erro: Comparação entre tipos incompatíveis '{type(left_value).__name__}' e '{type(right_value).__name__}'")
             return left_value == right_value
+        
         elif self.value == 'LESS':
+            if type(left_value) != type(right_value):
+                raise Exception(f"Erro: Comparação entre tipos incompatíveis '{type(left_value).__name__}' e '{type(right_value).__name__}'")
             return left_value < right_value
+        
         elif self.value == 'GREATER':
+            if type(left_value) != type(right_value):
+                raise Exception(f"Erro: Comparação entre tipos incompatíveis '{type(left_value).__name__}' e '{type(right_value).__name__}'")
             return left_value > right_value
+        
         elif self.value == 'OR':
             return left_value or right_value
+        
         elif self.value == 'AND':
             return left_value and right_value
+        
         elif self.value == 'WHILE':
             while self.children[0].Evaluate(symbol_table):  # Verifica a condição
                 self.children[1].Evaluate(symbol_table)  # Executa o bloco
@@ -259,11 +274,16 @@ class UnOp(Node):
 
     def Evaluate(self, symbol_table):
         child_value = self.children[0].Evaluate(symbol_table)
+
         if self.value == 'PLUS':
             return child_value
+        
         elif self.value == 'MINUS':
             return -child_value
+        
         elif self.value == 'NOT':
+            if not isinstance(child_value, (int, bool)):
+                raise Exception(f"Erro: Operador '!' não pode ser aplicado ao tipo '{type(child_value).__name__}'")
             return not child_value
 
 class IntVal(Node):
