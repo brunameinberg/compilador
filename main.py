@@ -214,7 +214,17 @@ class BinOp(Node):
     def Evaluate(self, symbol_table):
         left_value = self.children[0].Evaluate(symbol_table)
         right_value = self.children[1].Evaluate(symbol_table)
+
+        if isinstance(left_value, bool):
+            left_value = 1 if left_value else 0
+        if isinstance(right_value, bool):
+            right_value = 1 if right_value else 0
+            
         if self.value == 'PLUS':
+
+            if isinstance(left_value, str) or isinstance(right_value, str):
+                return str(left_value) + str(right_value)
+
             return left_value + right_value
         elif self.value == 'MINUS':
             return left_value - right_value
@@ -338,7 +348,15 @@ class VarDec(Node):
                     raise Exception(f"Erro: Tipo incompatível para '{identifier.value}'")
                 symbol_table.setter(identifier.value, value, self.var_type)
             else:
-                initial_value = 0 if self.var_type == int else None
+                if self.var_type == int:
+                    initial_value = 0
+                elif self.var_type == str:
+                    initial_value = ""  # Corrigido para string vazia ao invés de None
+                elif self.var_type == bool:
+                    initial_value = False
+                else:
+                    raise Exception(f"Erro: Tipo de dado desconhecido para inicialização")
+                
                 symbol_table.setter(identifier.value, initial_value, self.var_type)
 
 class StringVal(Node):
