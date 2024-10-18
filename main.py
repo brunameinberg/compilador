@@ -180,7 +180,7 @@ class SymbolTable:
 
     def getter(self, identifier):
         if identifier in self.table:
-            return self.table[identifier]
+            return self.table[identifier]  # Retorna (value, var_type, offset)
         else:
             raise Exception(f"Erro: Identificador '{identifier}' não encontrado")
 
@@ -315,7 +315,7 @@ class Identifier(Node):
         self.value = value
 
     def Evaluate(self, symbol_table):
-        value, _ = symbol_table.getter(self.value)  # Extrai apenas o valor da tupla
+        value, var_type, offset = symbol_table.getter(self.value)  # Extrai os três valores
         return value
     
 class Assignment(Node):
