@@ -220,37 +220,11 @@ class BinOp(Node):
             CodeGenerator.emit("IDIV EBX")
         
         elif self.value == 'EQUALEQUAL':
-            label_true = CodeGenerator.new_label("binop_true")
-            label_exit = CodeGenerator.new_label("binop_exit")
-            CodeGenerator.emit("CMP EAX, EBX")
-            CodeGenerator.emit(f"JE {label_true}")  # Salta se for igual
-            CodeGenerator.emit("MOV EBX, False")  # Falso (0)
-            CodeGenerator.emit(f"JMP {label_exit}")
-            CodeGenerator.emit(f"{label_true}:")
-            CodeGenerator.emit("MOV EBX, True")  # Verdadeiro (1)
-            CodeGenerator.emit(f"{label_exit}:")
-        
+            CodeGenerator.emit("CALL binop_je")  # Chama a subrotina de comparação
         elif self.value == 'LESS':
-            label_true = CodeGenerator.new_label("binop_true")
-            label_exit = CodeGenerator.new_label("binop_exit")
-            CodeGenerator.emit("CMP EAX, EBX")
-            CodeGenerator.emit(f"JL {label_true}")  # Salta se menor
-            CodeGenerator.emit("MOV EBX, False")
-            CodeGenerator.emit(f"JMP {label_exit}")
-            CodeGenerator.emit(f"{label_true}:")
-            CodeGenerator.emit("MOV EBX, True")
-            CodeGenerator.emit(f"{label_exit}:")
-        
+            CodeGenerator.emit("CALL binop_jl")
         elif self.value == 'GREATER':
-            label_true = CodeGenerator.new_label("binop_true")
-            label_exit = CodeGenerator.new_label("binop_exit")
-            CodeGenerator.emit("CMP EAX, EBX")
-            CodeGenerator.emit(f"JG {label_true}")  # Salta se maior
-            CodeGenerator.emit("MOV EBX, False")
-            CodeGenerator.emit(f"JMP {label_exit}")
-            CodeGenerator.emit(f"{label_true}:")
-            CodeGenerator.emit("MOV EBX, True")
-            CodeGenerator.emit(f"{label_exit}:")
+            CodeGenerator.emit("CALL binop_jg")
         
         elif self.value == 'OR':
             CodeGenerator.emit("OR EAX, EBX")  # OR lógico entre EAX e EBX
@@ -264,13 +238,12 @@ class BinOp(Node):
             loop_start = CodeGenerator.new_label("LOOP")
             loop_end = CodeGenerator.new_label("EXIT")
             CodeGenerator.emit(f"{loop_start}:")
-            self.children[0].Evaluate(symbol_table)  # Avalia a condição
-            CodeGenerator.emit("CMP EBX, False")  # Verifica se é falso
-            CodeGenerator.emit(f"JE {loop_end}")  # Sai do loop se for falso
-            self.children[1].Evaluate(symbol_table)  # Executa o corpo do loop
-            CodeGenerator.emit(f"JMP {loop_start}")  # Volta ao início do loop
-            CodeGenerator.emit(f"{loop_end}:")  # Ponto de saída do loop
-
+            self.children[0].Evaluate(symbol_table)
+            CodeGenerator.emit("CMP EBX, False")
+            CodeGenerator.emit(f"JE {loop_end}")
+            self.children[1].Evaluate(symbol_table)
+            CodeGenerator.emit(f"JMP {loop_start}")
+            CodeGenerator.emit(f"{loop_end}:")
         else:
             raise Exception(f"Operador desconhecido: {self.value}")
 
@@ -289,14 +262,24 @@ class UnOp(Node):
             CodeGenerator.emit("NEG EBX")
         
         elif self.value == 'NOT':
-            CodeGenerator.emit("CMP EBX, False")  # Compara o valor com False
+            CodeGenerator.emit("CMP EBX, False")  # Compara EBX com False (0)
+            
+            # Geração de labels para controle de fluxo
             label_true = CodeGenerator.new_label("unop_true")
             label_exit = CodeGenerator.new_label("unop_exit")
-            CodeGenerator.emit(f"JE {label_true}")  # Se EBX for False (0), o resultado será True
-            CodeGenerator.emit("MOV EBX, False")  # Caso contrário, é False
+            
+            # Se EBX for igual a False, pula para o label que define True
+            CodeGenerator.emit(f"JE {label_true}")
+            
+            # Caso contrário, define EBX como False
+            CodeGenerator.emit("MOV EBX, False")
             CodeGenerator.emit(f"JMP {label_exit}")
+            
+            # Label que define EBX como True
             CodeGenerator.emit(f"{label_true}:")
-            CodeGenerator.emit("MOV EBX, True")  # Se for False, o resultado será True
+            CodeGenerator.emit("MOV EBX, True")
+            
+            # Ponto de saída
             CodeGenerator.emit(f"{label_exit}:")
 
 class IntVal(Node):
@@ -637,9 +620,105 @@ class CodeGenerator:
 
     @staticmethod
     def write_to_file(filename):
+        # Cabeçalho inicial do código Assembly
+        header = [
+            "; constantes",
+            "SYS_EXIT equ 1",
+            "SYS_READ equ 3",
+            "SYS_WRITE equ 4",
+            "STDIN equ 0",
+            "STDOUT equ 1",
+            "True equ 1",
+            "False equ 0",
+            "",
+            "segment .data",
+            "",
+            "segment .bss  ; variaveis",
+            "  res RESB 1",
+            "",
+            "section .text",
+            "  global _start",
+            "",
+            "print:  ; subrotina print",
+            "  PUSH EBP ; guarda o base pointer",
+            "  MOV EBP, ESP ; estabelece um novo base pointer",
+            "  MOV EAX, [EBP+8] ; 1 argumento antes do RET e EBP",
+            "  XOR ESI, ESI",
+            "",
+            "print_dec: ; empilha todos os digitos",
+            "  MOV EDX, 0",
+            "  MOV EBX, 0x000A",
+            "  DIV EBX",
+            "  ADD EDX, '0'",
+            "  PUSH EDX",
+            "  INC ESI ; contador de digitos",
+            "  CMP EAX, 0",
+            "  JZ print_next ; quando acabar pula",
+            "  JMP print_dec",
+            "",
+            "print_next:",
+            "  CMP ESI, 0",
+            "  JZ print_exit ; quando acabar de imprimir",
+            "  DEC ESI",
+            "",
+            "  MOV EAX, SYS_WRITE",
+            "  MOV EBX, STDOUT",
+            "",
+            "  POP ECX",
+            "  MOV [res], ECX",
+            "  MOV ECX, res",
+            "",
+            "  MOV EDX, 1",
+            "  INT 0x80",
+            "  JMP print_next",
+            "",
+            "print_exit:",
+            "  POP EBP",
+            "  RET",
+            "",
+            "; subrotinas if/while",
+            "binop_je:",
+            "  JE binop_true",
+            "  JMP binop_false",
+            "",
+            "binop_jg:",
+            "  JG binop_true",
+            "  JMP binop_false",
+            "",
+            "binop_jl:",
+            "  JL binop_true",
+            "  JMP binop_false",
+            "",
+            "binop_false:",
+            "  MOV EBX, False",
+            "  JMP binop_exit",
+            "binop_true:",
+            "  MOV EBX, True",
+            "binop_exit:",
+            "  RET",
+            "",
+            "_start:",
+            "",
+            "  PUSH EBP ; guarda o base pointer",
+            "  MOV EBP, ESP ; estabelece um novo base pointer",
+            ""
+        ]
+
+        footer = [
+            "  ; interrupcao de saida",
+            "  POP EBP",
+            "  MOV EAX, 1",
+            "  INT 0x80"
+        ]
+
+        # Escreve o cabeçalho e as instruções
         with open(filename, 'w') as f:
+            for line in header:
+                f.write(line + '\n')
             for instr in CodeGenerator.instructions:
                 f.write(instr + '\n')
+            for line in footer:
+                f.write(line + '\n')
 
 
 if __name__ == '__main__':
