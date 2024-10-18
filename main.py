@@ -65,9 +65,7 @@ class Tokenizer:
             while self.position < len(self.source) and self.source[self.position].isalpha():
                 self.position += 1
             identifier = self.source[start:self.position]
-            if identifier == 'scanf':
-                self.current_token = Token("SCANF", identifier)
-            elif identifier == 'string' or identifier == 'str':
+            if identifier == 'string' or identifier == 'str':
                 self.current_token = Token("STRING_TYPE", identifier)
             else:
                 raise Exception(f"Erro: Token inesperado: '{identifier}'")
@@ -564,15 +562,6 @@ class Parser:
                 raise Exception("Erro: Esperado ')'")
             self.tokenizer.selectNext()
             return result
-        elif self.tokenizer.current_token.type == 'SCANF':
-            self.tokenizer.selectNext()
-            if self.tokenizer.current_token.type != 'EPARENT':
-                raise Exception("Erro: Esperado '(' após 'scanf'")
-            self.tokenizer.selectNext()
-            if self.tokenizer.current_token.type != 'DPARENT':
-                raise Exception("Erro: Esperado ')' após 'scanf'")
-            self.tokenizer.selectNext()
-            return IntVal(int(input()))
         elif self.tokenizer.current_token.type == 'NOT':
             self.tokenizer.selectNext()
             return UnOp('NOT', self.parseFactor())
