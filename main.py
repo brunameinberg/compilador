@@ -630,8 +630,8 @@ class CodeGenerator:
         CodeGenerator.instructions.append(instruction)
 
     @staticmethod
-    def new_label():
-        label = f"L{CodeGenerator.label_counter}"
+    def new_label(prefix="L"):
+        label = f"{prefix}_{CodeGenerator.label_counter}"
         CodeGenerator.label_counter += 1
         return label
 
