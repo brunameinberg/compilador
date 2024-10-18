@@ -184,8 +184,19 @@ class SymbolTable:
         else:
             raise Exception(f"Erro: Identificador '{identifier}' não encontrado")
 
-    def setter(self, identifier, value, var_type, offset):
-        self.table[identifier] = (value, var_type, offset)
+    def setter(self, identifier, value, var_type):
+        if not isinstance(value, var_type):
+            raise Exception(f"Erro: O valor '{value}' não corresponde ao tipo '{var_type.__name__}'")
+        self.table[identifier] = (value, var_type)
+
+    def check_type(self, identifier, expected_type):
+        if identifier in self.table:
+            _, stored_type = self.table[identifier]
+            if stored_type != expected_type:
+                raise Exception(f"Erro: Tipo incorreto. Esperado '{expected_type.__name__}', mas obtido '{stored_type.__name__}'")
+        else:
+            raise Exception(f"Erro: Identificador '{identifier}' não encontrado")
+
 
 class Node:
     def __init__(self, value=None):
@@ -202,74 +213,56 @@ class BinOp(Node):
 
     def Evaluate(self, symbol_table):
         left_value = self.children[0].Evaluate(symbol_table)
-        CodeGenerator.emit("PUSH EBX")
         right_value = self.children[1].Evaluate(symbol_table)
-        CodeGenerator.emit("POP EAX")
 
+        if isinstance(left_value, bool):
+            left_value = 1 if left_value else 0
+        if isinstance(right_value, bool):
+            right_value = 1 if right_value else 0
 
         if self.value == 'PLUS':
-            CodeGenerator.emit("ADD EAX, EBX")
 
+            if isinstance(left_value, str) or isinstance(right_value, str):
+                return str(left_value) + str(right_value)
+
+            return left_value + right_value
+        
         elif self.value == 'MINUS':
-            CodeGenerator.emit("SUB EAX, EBX")
-
+            return left_value - right_value
+        
         elif self.value == 'MULT':
-            CodeGenerator.emit("IMUL EAX, EBX")
-
+            return left_value * right_value
+        
         elif self.value == 'DIV':
-            CodeGenerator.emit("IDIV EBX")
+            if right_value == 0:
+                raise ValueError("Divisão por zero não permitida.")
+            return left_value // right_value
         
         elif self.value == 'EQUALEQUAL':
-            label_true = CodeGenerator.new_label("binop_true")
-            label_exit = CodeGenerator.new_label("binop_exit")
-            CodeGenerator.emit("CMP EAX, EBX")
-            CodeGenerator.emit(f"JE {label_true}")  # Salta se for igual
-            CodeGenerator.emit("MOV EBX, False")  # Falso (0)
-            CodeGenerator.emit(f"JMP {label_exit}")
-            CodeGenerator.emit(f"{label_true}:")
-            CodeGenerator.emit("MOV EBX, True")  # Verdadeiro (1)
-            CodeGenerator.emit(f"{label_exit}:")
+            if type(left_value) != type(right_value):
+                raise Exception(f"Erro: Comparação entre tipos incompatíveis '{type(left_value).__name__}' e '{type(right_value).__name__}'")
+            return left_value == right_value
         
         elif self.value == 'LESS':
-            label_true = CodeGenerator.new_label("binop_true")
-            label_exit = CodeGenerator.new_label("binop_exit")
-            CodeGenerator.emit("CMP EAX, EBX")
-            CodeGenerator.emit(f"JL {label_true}")  # Salta se menor
-            CodeGenerator.emit("MOV EBX, False")
-            CodeGenerator.emit(f"JMP {label_exit}")
-            CodeGenerator.emit(f"{label_true}:")
-            CodeGenerator.emit("MOV EBX, True")
-            CodeGenerator.emit(f"{label_exit}:")
+            if type(left_value) != type(right_value):
+                raise Exception(f"Erro: Comparação entre tipos incompatíveis '{type(left_value).__name__}' e '{type(right_value).__name__}'")
+            return left_value < right_value
         
         elif self.value == 'GREATER':
-            label_true = CodeGenerator.new_label("binop_true")
-            label_exit = CodeGenerator.new_label("binop_exit")
-            CodeGenerator.emit("CMP EAX, EBX")
-            CodeGenerator.emit(f"JG {label_true}")  # Salta se maior
-            CodeGenerator.emit("MOV EBX, False")
-            CodeGenerator.emit(f"JMP {label_exit}")
-            CodeGenerator.emit(f"{label_true}:")
-            CodeGenerator.emit("MOV EBX, True")
-            CodeGenerator.emit(f"{label_exit}:")
+            if type(left_value) != type(right_value):
+                raise Exception(f"Erro: Comparação entre tipos incompatíveis '{type(left_value).__name__}' e '{type(right_value).__name__}'")
+            return left_value > right_value
         
         elif self.value == 'OR':
-            CodeGenerator.emit("OR EAX, EBX")  # OR lógico entre EAX e EBX
-            CodeGenerator.emit("MOV EBX, EAX")  # Armazena o resultado em EBX
+            return left_value or right_value
         
         elif self.value == 'AND':
-            CodeGenerator.emit("AND EAX, EBX")  # AND lógico entre EAX e EBX
-            CodeGenerator.emit("MOV EBX, EAX")  # Armazena o resultado em EBX
+            return left_value and right_value
         
         elif self.value == 'WHILE':
-            loop_start = CodeGenerator.new_label("LOOP")
-            loop_end = CodeGenerator.new_label("EXIT")
-            CodeGenerator.emit(f"{loop_start}:")
-            self.children[0].Evaluate(symbol_table)  # Avalia a condição
-            CodeGenerator.emit("CMP EBX, False")  # Verifica se é falso
-            CodeGenerator.emit(f"JE {loop_end}")  # Sai do loop se for falso
-            self.children[1].Evaluate(symbol_table)  # Executa o corpo do loop
-            CodeGenerator.emit(f"JMP {loop_start}")  # Volta ao início do loop
-            CodeGenerator.emit(f"{loop_end}:")  # Ponto de saída do loop
+            while self.children[0].Evaluate(symbol_table):  # Verifica a condição
+                self.children[1].Evaluate(symbol_table)  # Executa o bloco
+            return 0  # Ao terminar o loop, retorna 0 ou algo neutro
 
         else:
             raise Exception(f"Operador desconhecido: {self.value}")
@@ -283,28 +276,22 @@ class UnOp(Node):
         child_value = self.children[0].Evaluate(symbol_table)
 
         if self.value == 'PLUS':
-            return
+            return child_value
         
         elif self.value == 'MINUS':
-            CodeGenerator.emit("NEG EBX")
+            return -child_value
         
         elif self.value == 'NOT':
-            CodeGenerator.emit("CMP EBX, False")  # Compara o valor com False
-            label_true = CodeGenerator.new_label("unop_true")
-            label_exit = CodeGenerator.new_label("unop_exit")
-            CodeGenerator.emit(f"JE {label_true}")  # Se EBX for False (0), o resultado será True
-            CodeGenerator.emit("MOV EBX, False")  # Caso contrário, é False
-            CodeGenerator.emit(f"JMP {label_exit}")
-            CodeGenerator.emit(f"{label_true}:")
-            CodeGenerator.emit("MOV EBX, True")  # Se for False, o resultado será True
-            CodeGenerator.emit(f"{label_exit}:")
+            if not isinstance(child_value, (int, bool)):
+                raise Exception(f"Erro: Operador '!' não pode ser aplicado ao tipo '{type(child_value).__name__}'")
+            return not child_value
 
 class IntVal(Node):
     def __init__(self, value):
         super().__init__(value)
 
     def Evaluate(self, symbol_table):
-        CodeGenerator.emit(f"MOV EBX, {self.value}")
+        return self.value
 
 class NoOp(Node):
     def Evaluate(self, symbol_table):
@@ -325,18 +312,20 @@ class Assignment(Node):
 
     def Evaluate(self, symbol_table):
         value = self.expression.Evaluate(symbol_table)
-        offset = 4 * (list(symbol_table.table.keys()).index(self.identifier.value) + 1)  # Calcula o deslocamento
-        CodeGenerator.emit(f"MOV [EBP-{offset}], EBX")
+        _, var_type = symbol_table.getter(self.identifier.value)
+        symbol_table.setter(self.identifier.value, value, var_type)
 
 class Print(Node):
     def __init__(self, expression):
         self.expression = expression
 
     def Evaluate(self, symbol_table):
-        self.expression.Evaluate(symbol_table)  # O valor já está em EBX
-        CodeGenerator.emit("PUSH EBX")
-        CodeGenerator.emit("CALL print")
-        CodeGenerator.emit("POP EBX")  # Limpa a pilha
+        value = self.expression.Evaluate(symbol_table)
+
+        if isinstance(value, bool):
+            value = int(value)
+        
+        print(f"{value}")
 
 class Statements(Node):
     def __init__(self):
@@ -371,24 +360,31 @@ class VarDec(Node):
         for i, identifier in enumerate(self.identifiers):
             if identifier.value in symbol_table.table:
                 raise Exception(f"Erro: Variável '{identifier.value}' já foi declarada")
-
-            # Gera código para alocar a variável na pilha
-            CodeGenerator.emit("PUSH DWORD 0")  # Alocação de espaço para a variável na pilha
-            offset = 4 * (len(symbol_table.table) + 1)  # Calcula o deslocamento com base na posição atual
-            symbol_table.setter(identifier.value, 0, self.var_type, offset)
-
+            
+            # Verificar se há expressão associada
             if i < len(self.expressions) and self.expressions[i] is not None:
-                self.expressions[i].Evaluate(symbol_table)
-                CodeGenerator.emit(f"MOV [EBP-{offset}], EBX") 
+                value = self.expressions[i].Evaluate(symbol_table)
+                if not isinstance(value, self.var_type):
+                    raise Exception(f"Erro: Tipo incompatível para '{identifier.value}'")
+                symbol_table.setter(identifier.value, value, self.var_type)
+            else:
+                if self.var_type == int:
+                    initial_value = 0
+                elif self.var_type == str:
+                    initial_value = ""  # Corrigido para string vazia ao invés de None
+                elif self.var_type == bool:
+                    initial_value = False
+                else:
+                    raise Exception(f"Erro: Tipo de dado desconhecido para inicialização")
+                
+                symbol_table.setter(identifier.value, initial_value, self.var_type)
 
 class StringVal(Node):
     def __init__(self, value):
         super().__init__(value)
 
     def Evaluate(self, symbol_table):
-        string_label = CodeGenerator.new_label("string")
-        CodeGenerator.emit(f"{string_label}: db '{self.value}', 0")  # Aloca a string na seção de dados
-        CodeGenerator.emit(f"MOV EBX, {string_label}")
+        return self.value
 
 
 class Parser:
@@ -621,46 +617,13 @@ class Parser:
 
         return result
 
-class CodeGenerator:
-    instructions = []
-    label_counter = 0
-
-    @staticmethod
-    def emit(instruction):
-        CodeGenerator.instructions.append(instruction)
-
-    @staticmethod
-    def new_label():
-        label = f"L{CodeGenerator.label_counter}"
-        CodeGenerator.label_counter += 1
-        return label
-
-    @staticmethod
-    def write_to_file(filename):
-        with open(filename, 'w') as f:
-            for instr in CodeGenerator.instructions:
-                f.write(instr + '\n')
-
-
 if __name__ == '__main__':
 
-    arquivo = sys.argv[1]  # Arquivo de entrada
+    arquivo = sys.argv[1]
 
-    # Lê o conteúdo do arquivo de entrada
     with open(arquivo, 'r') as file:
         operacao = file.read()
 
-    # Gera a AST e avalia
     ast = Parser.run(operacao)
     symbol_table = SymbolTable()
     ast.Evaluate(symbol_table)
-
-    # Remove a extensão do arquivo de entrada e adiciona '.asm'
-    asm_filename = os.path.splitext(arquivo)[0] + ".asm"
-    
-    # Gera o arquivo .asm com o mesmo nome do arquivo de entrada
-    CodeGenerator.write_to_file(asm_filename)
-
-    print(f"Código Assembly gerado no arquivo '{asm_filename}'")
-
-
