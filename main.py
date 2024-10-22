@@ -200,7 +200,9 @@ class BinOp(Node):
 
     def Evaluate(self, symbol_table):
         left_value = self.children[0].Evaluate(symbol_table)
+        CodeGenerator.emit("PUSH EBX")
         right_value = self.children[1].Evaluate(symbol_table)
+        CodeGenerator.emit("POP EAX")
 
 
         if self.value == 'PLUS':
@@ -232,6 +234,10 @@ class BinOp(Node):
 
         else:
             raise Exception(f"Operador desconhecido: {self.value}")
+        
+        CodeGenerator.emit("MOV EBX, EAX") 
+        
+        
         
 class While(Node):
     def __init__(self, cond: Node, block: Node):
@@ -313,7 +319,12 @@ class Identifier(Node):
         self.value = value
 
     def Evaluate(self, symbol_table):
-        value, var_type, offset = symbol_table.getter(self.value)  # Extrai os três valores
+        value, var_type, offset = symbol_table.getter(self.value)  
+        
+        # Gera o código para carregar o valor correto da variável a partir da pilha
+        CodeGenerator.emit(f"MOV EBX, [EBP-{offset}]")
+        
+        # Retorna o valor da variável carregada (EBX terá o valor da variável)
         return value
     
 class Assignment(Node):
