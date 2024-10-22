@@ -97,7 +97,7 @@ class Tokenizer:
             elif identifier == 'int':
                 self.current_token = Token("INT_TYPE", identifier)
             else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
+                self.current_token = Token("IDENT", identifier)
         elif caractere == 'e':
             start = self.position
             while self.position < len(self.source) and self.source[self.position].isalpha():
@@ -626,7 +626,7 @@ class CodeGenerator:
             "  res RESB 1",
             "",
             "section .text",
-            "  global _start",
+            "  global _main",
             "",
             "print:  ; subrotina print",
             "  PUSH EBP ; guarda o base pointer",
@@ -686,7 +686,7 @@ class CodeGenerator:
             "binop_exit:",
             "  RET",
             "",
-            "_start:",
+            "_main:",
             "",
             "  PUSH EBP ; guarda o base pointer",
             "  MOV EBP, ESP ; estabelece um novo base pointer",
