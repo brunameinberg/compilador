@@ -207,21 +207,28 @@ class BinOp(Node):
 
         if self.value == 'PLUS':
             CodeGenerator.emit("ADD EAX, EBX")
+            CodeGenerator.emit("MOV EBX, EAX")
 
         elif self.value == 'MINUS':
             CodeGenerator.emit("SUB EAX, EBX")
+            CodeGenerator.emit("MOV EBX, EAX")
 
         elif self.value == 'MULT':
             CodeGenerator.emit("IMUL EAX, EBX")
+            CodeGenerator.emit("MOV EBX, EAX")
 
         elif self.value == 'DIV':
             CodeGenerator.emit("IDIV EBX")
+            CodeGenerator.emit("MOV EBX, EAX")
         
         elif self.value == 'EQUALEQUAL':
+            CodeGenerator.emit("CMP EAX, EBX")
             CodeGenerator.emit("CALL binop_je")  # Chama a subrotina de comparação
         elif self.value == 'LESS':
+            CodeGenerator.emit("CMP EAX, EBX")
             CodeGenerator.emit("CALL binop_jl")
         elif self.value == 'GREATER':
+            CodeGenerator.emit("CMP EAX, EBX")
             CodeGenerator.emit("CALL binop_jg")
         
         elif self.value == 'OR':
@@ -235,7 +242,7 @@ class BinOp(Node):
         else:
             raise Exception(f"Operador desconhecido: {self.value}")
         
-        CodeGenerator.emit("MOV EBX, EAX") 
+        
         
         
         
