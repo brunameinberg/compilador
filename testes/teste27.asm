@@ -13,7 +13,7 @@ segment .bss  ; variaveis
   res RESB 1
 
 section .text
-  global _start
+  global main
 
 print:  ; subrotina print
   PUSH EBP ; guarda o base pointer
@@ -73,7 +73,7 @@ binop_true:
 binop_exit:
   RET
 
-_start:
+main:
 
   PUSH EBP ; guarda o base pointer
   MOV EBP, ESP ; estabelece um novo base pointer
@@ -87,45 +87,19 @@ MOV EBX, 2
 MOV [EBP-4], EBX
 MOV EBX, 1
 MOV [EBP-12], EBX
-PUSH EBX
-PUSH EBX
+LOOP_0: ; Label do início do loop
 MOV EBX, 1
-POP EAX
 ADD EAX, EBX
-POP EAX
-CALL binop_jl
-PUSH EBX
-PUSH EBX
-POP EAX
-IMUL EAX, EBX
-MOV [EBP-12], EBX
-PUSH EBX
-MOV EBX, 1
-POP EAX
-ADD EAX, EBX
-MOV [EBP-4], EBX
-POP EAX
-LOOP_0:
-PUSH EBX
-PUSH EBX
-MOV EBX, 1
-POP EAX
-ADD EAX, EBX
-POP EAX
 CALL binop_jl
 CMP EBX, False
 JE EXIT_1
-PUSH EBX
-POP EAX
 IMUL EAX, EBX
 MOV [EBP-12], EBX
-PUSH EBX
 MOV EBX, 1
-POP EAX
 ADD EAX, EBX
 MOV [EBP-4], EBX
 JMP LOOP_0
-EXIT_1:
+EXIT_1: ; Saída do loop
 PUSH EBX
 CALL print
 POP EBX

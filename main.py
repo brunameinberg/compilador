@@ -200,9 +200,7 @@ class BinOp(Node):
 
     def Evaluate(self, symbol_table):
         left_value = self.children[0].Evaluate(symbol_table)
-        CodeGenerator.emit("PUSH EBX")
         right_value = self.children[1].Evaluate(symbol_table)
-        CodeGenerator.emit("POP EAX")
 
 
         if self.value == 'PLUS':
@@ -231,19 +229,38 @@ class BinOp(Node):
         elif self.value == 'AND':
             CodeGenerator.emit("AND EAX, EBX")  # AND lógico entre EAX e EBX
             CodeGenerator.emit("MOV EBX, EAX")  # Armazena o resultado em EBX
-        
-        elif self.value == 'WHILE':
-            loop_start = CodeGenerator.new_label("LOOP")
-            loop_end = CodeGenerator.new_label("EXIT")
-            CodeGenerator.emit(f"{loop_start}:")
-            self.children[0].Evaluate(symbol_table)
-            CodeGenerator.emit("CMP EBX, False")
-            CodeGenerator.emit(f"JE {loop_end}")
-            self.children[1].Evaluate(symbol_table)
-            CodeGenerator.emit(f"JMP {loop_start}")
-            CodeGenerator.emit(f"{loop_end}:")
+
         else:
             raise Exception(f"Operador desconhecido: {self.value}")
+        
+class While(Node):
+    def __init__(self, cond: Node, block: Node):
+        super().__init__('while')
+        self.id = CodeGenerator.new_label("LOOP")  
+        self.exit_label = CodeGenerator.new_label("EXIT")
+        self.children.extend([cond, block])
+
+    def Evaluate(self, symbol_table: SymbolTable):
+        # Emite o rótulo de início do loop
+        CodeGenerator.emit(f"{self.id}: ; Label do início do loop")
+
+        # Avalia a condição do loop
+        self.children[0].Evaluate(symbol_table)
+
+        # Compara o valor de EBX (resultado da condição) com False (0)
+        CodeGenerator.emit("CMP EBX, False")
+
+        # Se a condição for falsa, pula para o rótulo de saída do loop
+        CodeGenerator.emit(f"JE {self.exit_label}")
+
+        # Executa o bloco de código dentro do loop
+        self.children[1].Evaluate(symbol_table)
+
+        # Volta para o início do loop
+        CodeGenerator.emit(f"JMP {self.id}")
+
+        # Emite o rótulo de saída do loop
+        CodeGenerator.emit(f"{self.exit_label}: ; Saída do loop")
 
 class UnOp(Node):
     def __init__(self, value, child):
@@ -460,7 +477,7 @@ class Parser:
             # Após o 'while', pode vir um bloco ou um statement
             block = self.parseStatement() if self.tokenizer.current_token.type != 'LBRACE' else self.parseBlock()
             
-            return BinOp('WHILE', condition, block)
+            return While(condition, block)
         
         if self.tokenizer.current_token.type == 'INT_TYPE':
             var_type = int
