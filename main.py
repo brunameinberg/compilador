@@ -131,6 +131,16 @@ class Tokenizer:
                 self.current_token = Token("BOOL_TYPE", identifier)  # Identificamos o tipo bool
             else:
                 self.current_token = Token("IDENT", identifier)
+        
+        elif caractere == 'v':
+            start = self.position
+            while self.position < len(self.source) and self.source[self.position].isalpha():
+                self.position += 1
+            identifier = self.source[start:self.position]
+            if identifier == 'void':
+                self.current_token = Token("VOID_TYPE", identifier)
+            else:
+                raise Exception(f"Erro: Token inesperado: '{identifier}'")
 
         elif caractere == ',':
             self.current_token = Token("COMMA", ',')  # Corrigimos para retornar um token de vírgula corretamente
@@ -419,11 +429,12 @@ class StringVal(Node):
         return self.value
     
 class FuncDec(Node):
-    def __init__(self, func_name, var_dec, statements):
+    def __init__(self, func_name, var_dec, statements, return_type):
         super().__init__('FUNCDEC')
         self.func_name = func_name  
         self.var_dec = var_dec      
         self.statements = statements  
+        self.return_type = return_type
 
     def Evaluate(self, global_symbol_table):
 
@@ -480,10 +491,9 @@ class FuncCall(Node):
         #print(f"Tabela local da função '{self.func_name.value}': {local_symbol_table.table}")
         result = func_dec.statements.Evaluate(local_symbol_table, global_symbol_table)
 
-        # Garantir que sempre há um retorno da função
-        if result is None:
+        if result is None and func_dec.return_type != 'VOID_TYPE':
             raise Exception(f"Erro: A função '{self.func_name.value}' não possui um retorno explícito.")
-        
+
         #print(f"Função '{self.func_name.value}' retornou: {result}")
         return result
 
@@ -492,6 +502,11 @@ class Return(Node):
         self.expression = expression
 
     def Evaluate(self, symbol_table, global_symbol_table=None):
+        if global_symbol_table:
+            func_dec, _ = global_symbol_table.getter(self.func_name.value)
+            if func_dec.return_type == 'VOID_TYPE' and self.expression is not None:
+                raise Exception(f"Erro: Função '{self.func_name.value}' do tipo 'void' não pode retornar valores.")
+
         return self.expression.Evaluate(symbol_table, global_symbol_table)
 
 
@@ -512,9 +527,12 @@ class Parser:
     
     def parseFunction(self):
 
-        if self.tokenizer.current_token.type != 'INT_TYPE':
-            raise Exception("Erro: Esperado 'int' no início da função")
+        if self.tokenizer.current_token.type not in ['INT_TYPE', 'VOID_TYPE']:
+            raise Exception("Erro: Esperado 'int' ou 'void' no início da função")
+
         
+        return_type = self.tokenizer.current_token.type
+
         self.tokenizer.selectNext()  
 
         if self.tokenizer.current_token.type != 'IDENT':
@@ -555,7 +573,7 @@ class Parser:
         # Lê o bloco de declarações e statements
         statements = self.parseBlock()
 
-        return FuncDec(func_name, VarDec(int, parameters), statements)
+        return FuncDec(func_name, VarDec(int, parameters), statements, return_type)
 
     def parseBlock(self):
         if self.tokenizer.current_token.type != 'LBRACE':
