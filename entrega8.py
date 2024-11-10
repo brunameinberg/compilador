@@ -2,8 +2,6 @@ import sys
 import os
 import re
 
-FUNCTION_TYPE = "FUNCTION"
-
 
 class Token:
     def __init__(self, type, value):
@@ -62,6 +60,15 @@ class Tokenizer:
             else:
                 self.current_token = Token('EQUAL', '=')
                 self.position += 1
+        elif caractere == 's':
+            start = self.position
+            while self.position < len(self.source) and self.source[self.position].isalpha():
+                self.position += 1
+            identifier = self.source[start:self.position]
+            if identifier == 'string' or identifier == 'str':
+                self.current_token = Token("STRING_TYPE", identifier)
+            else:
+                raise Exception(f"Erro: Token inesperado: '{identifier}'")
         elif caractere == '<':
             self.current_token = Token('LESS', '<')
             self.position += 1
@@ -90,7 +97,7 @@ class Tokenizer:
             elif identifier == 'int':
                 self.current_token = Token("INT_TYPE", identifier)
             else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
+                self.current_token = Token("IDENT", identifier)
         elif caractere == 'e':
             start = self.position
             while self.position < len(self.source) and self.source[self.position].isalpha():
@@ -146,27 +153,9 @@ class Tokenizer:
             while self.position < len(self.source) and (self.source[self.position].isalnum() or self.source[self.position] == '_'):
                 self.position += 1
             identifier = self.source[start:self.position]
-
-            if identifier == 'scanf':
-                self.current_token = Token("SCANF", identifier)
-            elif identifier == 'printf':
+            if identifier == 'printf':
                 self.current_token = Token("PRINTF", identifier)
-            elif identifier == 'return':
-                self.current_token = Token("RETURN", identifier)
-            elif identifier == 'if':
-                self.current_token = Token("IF", identifier)
-            elif identifier == 'else':
-                self.current_token = Token("ELSE", identifier)
-            elif identifier == 'while':
-                self.current_token = Token("WHILE", identifier)
-            elif identifier == 'int':
-                self.current_token = Token("INT_TYPE", identifier)
-            elif identifier == 'string' or identifier == 'str':
-                self.current_token = Token("STRING_TYPE", identifier)
-            elif identifier == 'bool':
-                self.current_token = Token("BOOL_TYPE", identifier)
             else:
-                # Caso não seja palavra reservada, é um identificador genérico
                 self.current_token = Token("IDENT", identifier)
         else:
             raise Exception(f"Erro: Caractere inesperado encontrado: {caractere}")
@@ -189,23 +178,12 @@ class SymbolTable:
 
     def getter(self, identifier):
         if identifier in self.table:
-            return self.table[identifier]
+            return self.table[identifier]  # Retorna (value, var_type, offset)
         else:
             raise Exception(f"Erro: Identificador '{identifier}' não encontrado")
 
-    def setter(self, identifier, value, var_type):
-        if var_type != FUNCTION_TYPE and not isinstance(value, var_type):
-            raise Exception(f"Erro: O valor '{value}' não corresponde ao tipo '{var_type.__name__}'")
-        self.table[identifier] = (value, var_type)
-
-    def check_type(self, identifier, expected_type):
-        if identifier in self.table:
-            _, stored_type = self.table[identifier]
-            if stored_type != expected_type:
-                raise Exception(f"Erro: Tipo incorreto. Esperado '{expected_type.__name__}', mas obtido '{stored_type.__name__}'")
-        else:
-            raise Exception(f"Erro: Identificador '{identifier}' não encontrado")
-
+    def setter(self, identifier, value, var_type, offset):
+        self.table[identifier] = (value, var_type, offset)
 
 class Node:
     def __init__(self, value=None):
@@ -217,103 +195,143 @@ class Node:
 
 class BinOp(Node):
     def __init__(self, value, left, right):
-        if left is None or right is None:
-            raise Exception(f"Erro ao criar BinOp: Operandos inválidos (left={left}, right={right})")
         super().__init__(value)
         self.children = [left, right]
 
-    def Evaluate(self, symbol_table, global_symbol_table=None):
-        left_value = self.children[0].Evaluate(symbol_table, global_symbol_table)
-        right_value = self.children[1].Evaluate(symbol_table, global_symbol_table)
+    def Evaluate(self, symbol_table):
+        left_value = self.children[0].Evaluate(symbol_table)
+        CodeGenerator.emit("PUSH EBX")
+        right_value = self.children[1].Evaluate(symbol_table)
+        CodeGenerator.emit("POP EAX")
 
-        if isinstance(left_value, bool):
-            left_value = 1 if left_value else 0
-        if isinstance(right_value, bool):
-            right_value = 1 if right_value else 0
 
         if self.value == 'PLUS':
+            CodeGenerator.emit("ADD EAX, EBX")
+            CodeGenerator.emit("MOV EBX, EAX")
 
-            if isinstance(left_value, str) or isinstance(right_value, str):
-                return str(left_value) + str(right_value)
-
-            return left_value + right_value
-        
         elif self.value == 'MINUS':
-            return left_value - right_value
-        
+            CodeGenerator.emit("SUB EAX, EBX")
+            CodeGenerator.emit("MOV EBX, EAX")
+
         elif self.value == 'MULT':
-            return left_value * right_value
-        
+            CodeGenerator.emit("IMUL EAX, EBX")
+            CodeGenerator.emit("MOV EBX, EAX")
+
         elif self.value == 'DIV':
-            if right_value == 0:
-                raise ValueError("Divisão por zero não permitida.")
-            return left_value // right_value
+            CodeGenerator.emit("IDIV EBX")
+            CodeGenerator.emit("MOV EBX, EAX")
         
         elif self.value == 'EQUALEQUAL':
-            if type(left_value) != type(right_value):
-                raise Exception(f"Erro: Comparação entre tipos incompatíveis '{type(left_value).__name__}' e '{type(right_value).__name__}'")
-            return left_value == right_value
-        
+            CodeGenerator.emit("CMP EAX, EBX")
+            CodeGenerator.emit("CALL binop_je")  # Chama a subrotina de comparação
         elif self.value == 'LESS':
-            if type(left_value) != type(right_value):
-                raise Exception(f"Erro: Comparação entre tipos incompatíveis '{type(left_value).__name__}' e '{type(right_value).__name__}'")
-            return left_value < right_value
-        
+            CodeGenerator.emit("CMP EAX, EBX")
+            CodeGenerator.emit("CALL binop_jl")
         elif self.value == 'GREATER':
-            if type(left_value) != type(right_value):
-                raise Exception(f"Erro: Comparação entre tipos incompatíveis '{type(left_value).__name__}' e '{type(right_value).__name__}'")
-            return left_value > right_value
+            CodeGenerator.emit("CMP EAX, EBX")
+            CodeGenerator.emit("CALL binop_jg")
         
         elif self.value == 'OR':
-            return left_value or right_value
+            CodeGenerator.emit("OR EAX, EBX")  # OR lógico entre EAX e EBX
+            CodeGenerator.emit("MOV EBX, EAX")  # Armazena o resultado em EBX
         
         elif self.value == 'AND':
-            return left_value and right_value
-        
-        elif self.value == 'WHILE':
-            while self.children[0].Evaluate(symbol_table, global_symbol_table):  # Verifica a condição
-                self.children[1].Evaluate(symbol_table, global_symbol_table)  # Executa o bloco
-            return 0  # Ao terminar o loop, retorna 0 ou algo neutro
+            CodeGenerator.emit("AND EAX, EBX")  # AND lógico entre EAX e EBX
+            CodeGenerator.emit("MOV EBX, EAX")  # Armazena o resultado em EBX
 
         else:
             raise Exception(f"Operador desconhecido: {self.value}")
+        
+        
+        
+        
+        
+class While(Node):
+    def __init__(self, cond: Node, block: Node):
+        super().__init__('while')
+        self.id = CodeGenerator.new_label("LOOP")  
+        self.exit_label = CodeGenerator.new_label("EXIT")
+        self.children.extend([cond, block])
+
+    def Evaluate(self, symbol_table: SymbolTable):
+        # Emite o rótulo de início do loop
+        CodeGenerator.emit(f"{self.id}: ; Label do início do loop")
+
+        # Avalia a condição do loop
+        self.children[0].Evaluate(symbol_table)
+
+        # Compara o valor de EBX (resultado da condição) com False (0)
+        CodeGenerator.emit("CMP EBX, False")
+
+        # Se a condição for falsa, pula para o rótulo de saída do loop
+        CodeGenerator.emit(f"JE {self.exit_label}")
+
+        # Executa o bloco de código dentro do loop
+        self.children[1].Evaluate(symbol_table)
+
+        # Volta para o início do loop
+        CodeGenerator.emit(f"JMP {self.id}")
+
+        # Emite o rótulo de saída do loop
+        CodeGenerator.emit(f"{self.exit_label}: ; Saída do loop")
 
 class UnOp(Node):
     def __init__(self, value, child):
         super().__init__(value)
         self.children = [child]
 
-    def Evaluate(self, symbol_table, global_symbol_table=None):
-        child_value = self.children[0].Evaluate(symbol_table, global_symbol_table)
+    def Evaluate(self, symbol_table):
+        child_value = self.children[0].Evaluate(symbol_table)
 
         if self.value == 'PLUS':
-            return child_value
+            return
         
         elif self.value == 'MINUS':
-            return -child_value
+            CodeGenerator.emit("NEG EBX")
         
         elif self.value == 'NOT':
-            if not isinstance(child_value, (int, bool)):
-                raise Exception(f"Erro: Operador '!' não pode ser aplicado ao tipo '{type(child_value).__name__}'")
-            return not child_value
+            CodeGenerator.emit("CMP EBX, False")  # Compara EBX com False (0)
+            
+            # Geração de labels para controle de fluxo
+            label_true = CodeGenerator.new_label("unop_true")
+            label_exit = CodeGenerator.new_label("unop_exit")
+            
+            # Se EBX for igual a False, pula para o label que define True
+            CodeGenerator.emit(f"JE {label_true}")
+            
+            # Caso contrário, define EBX como False
+            CodeGenerator.emit("MOV EBX, False")
+            CodeGenerator.emit(f"JMP {label_exit}")
+            
+            # Label que define EBX como True
+            CodeGenerator.emit(f"{label_true}:")
+            CodeGenerator.emit("MOV EBX, True")
+            
+            # Ponto de saída
+            CodeGenerator.emit(f"{label_exit}:")
 
 class IntVal(Node):
     def __init__(self, value):
         super().__init__(value)
 
-    def Evaluate(self, symbol_table, global_symbol_table=None):
-        return self.value
+    def Evaluate(self, symbol_table):
+        CodeGenerator.emit(f"MOV EBX, {self.value}")
 
 class NoOp(Node):
-    def Evaluate(self, symbol_table, global_symbol_table=None):
+    def Evaluate(self, symbol_table):
         return 0
 
 class Identifier(Node):
     def __init__(self, value):
         self.value = value
 
-    def Evaluate(self, symbol_table, global_symbol_table=None):
-        value, _ = symbol_table.getter(self.value)  # Extrai apenas o valor da tupla
+    def Evaluate(self, symbol_table):
+        value, var_type, offset = symbol_table.getter(self.value)  
+        
+        # Gera o código para carregar o valor correto da variável a partir da pilha
+        CodeGenerator.emit(f"MOV EBX, [EBP-{offset}]")
+        
+        # Retorna o valor da variável carregada (EBX terá o valor da variável)
         return value
     
 class Assignment(Node):
@@ -321,51 +339,28 @@ class Assignment(Node):
         self.identifier = identifier
         self.expression = expression
 
-    def Evaluate(self, symbol_table, global_symbol_table=None):
+    def Evaluate(self, symbol_table):
         value = self.expression.Evaluate(symbol_table)
-        _, var_type = symbol_table.getter(self.identifier.value)
-        symbol_table.setter(self.identifier.value, value, var_type)
+        offset = 4 * (list(symbol_table.table.keys()).index(self.identifier.value) + 1)  # Calcula o deslocamento
+        CodeGenerator.emit(f"MOV [EBP-{offset}], EBX")
 
 class Print(Node):
     def __init__(self, expression):
         self.expression = expression
 
-    def Evaluate(self, symbol_table, global_symbol_table=None):
-        value = self.expression.Evaluate(symbol_table, global_symbol_table)
-
-        if isinstance(value, bool):
-            value = int(value)
-        
-        print(f"{value}")
+    def Evaluate(self, symbol_table):
+        self.expression.Evaluate(symbol_table)  # O valor já está em EBX
+        CodeGenerator.emit("PUSH EBX")
+        CodeGenerator.emit("CALL print")
+        CodeGenerator.emit("POP EBX")  # Limpa a pilha
 
 class Statements(Node):
     def __init__(self):
         self.statements = []
 
-    def Evaluate(self, symbol_table, global_symbol_table=None):
-
-        if global_symbol_table is None:
-            global_symbol_table = symbol_table
-
-        #print("[DEBUG] Executando bloco de statements...")
-        #print(f"[DEBUG] Tabela de símbolos global no início: {global_symbol_table.table}")
-        #print(f"[DEBUG] Tabela de símbolos local no início: {symbol_table.table}")
-
-
-        # Primeiro, registra todas as funções na tabela de símbolos
+    def Evaluate(self, symbol_table):
         for statement in self.statements:
-            if isinstance(statement, FuncDec):
-                statement.Evaluate(global_symbol_table)
-                #print(f"Função '{statement.func_name.value}' registrada com sucesso.")
-
-        # Em seguida, executa o restante do programa
-        for statement in self.statements:
-            #print(f"Executando statement: {statement}")
-            if not isinstance(statement, FuncDec):
-                result = statement.Evaluate(symbol_table, global_symbol_table)
-                if isinstance(statement, Return):  # Detecta um nó de retorno
-                    return result  # Propaga o valor de retorno
-        return None
+            statement.Evaluate(symbol_table)
 
 class If(Node):
     def __init__(self, condition, if_block, else_block=None):
@@ -374,11 +369,11 @@ class If(Node):
         self.if_block = if_block
         self.else_block = else_block
 
-    def Evaluate(self, symbol_table,  global_symbol_table=None):
+    def Evaluate(self, symbol_table):
         if self.condition.Evaluate(symbol_table):  
-            return self.if_block.Evaluate(symbol_table, global_symbol_table)
+            return self.if_block.Evaluate(symbol_table)
         elif self.else_block:  
-            return self.else_block.Evaluate(symbol_table, global_symbol_table)
+            return self.else_block.Evaluate(symbol_table)
         return 0  
 
 class VarDec(Node):
@@ -388,111 +383,28 @@ class VarDec(Node):
         self.identifiers = identifiers
         self.expressions = expressions or []
 
-    def Evaluate(self, symbol_table, global_symbol_table=None):
+    def Evaluate(self, symbol_table):
         for i, identifier in enumerate(self.identifiers):
             if identifier.value in symbol_table.table:
                 raise Exception(f"Erro: Variável '{identifier.value}' já foi declarada")
-            
-            # Verificar se há expressão associada
+
+            # Gera código para alocar a variável na pilha
+            CodeGenerator.emit("PUSH DWORD 0")  # Alocação de espaço para a variável na pilha
+            offset = 4 * (len(symbol_table.table) + 1)  # Calcula o deslocamento com base na posição atual
+            symbol_table.setter(identifier.value, 0, self.var_type, offset)
+
             if i < len(self.expressions) and self.expressions[i] is not None:
-                value = self.expressions[i].Evaluate(symbol_table, global_symbol_table)
-                if not isinstance(value, self.var_type):
-                    raise Exception(f"Erro: Tipo incompatível para '{identifier.value}'")
-                symbol_table.setter(identifier.value, value, self.var_type)
-            else:
-                if self.var_type == int:
-                    initial_value = 0
-                elif self.var_type == str:
-                    initial_value = ""  # Corrigido para string vazia ao invés de None
-                elif self.var_type == bool:
-                    initial_value = False
-                else:
-                    raise Exception(f"Erro: Tipo de dado desconhecido para inicialização")
-                
-                symbol_table.setter(identifier.value, initial_value, self.var_type)
+                self.expressions[i].Evaluate(symbol_table)
+                CodeGenerator.emit(f"MOV [EBP-{offset}], EBX") 
 
 class StringVal(Node):
     def __init__(self, value):
         super().__init__(value)
 
     def Evaluate(self, symbol_table):
-        return self.value
-    
-class FuncDec(Node):
-    def __init__(self, func_name, var_dec, statements):
-        super().__init__('FUNCDEC')
-        self.func_name = func_name  
-        self.var_dec = var_dec      
-        self.statements = statements  
-
-    def Evaluate(self, global_symbol_table):
-
-        #print(f"Registrando função '{self.func_name.value}' na tabela de símbolos.")
-        global_symbol_table.setter(self.func_name.value, self, FUNCTION_TYPE)
-        #print(f"Tabela de símbolos global após registro: {global_symbol_table.table}")
-
-   
-
-class FuncCall(Node):
-    def __init__(self, func_name, args):
-        super().__init__('FUNCCALL')
-        self.func_name = func_name  
-        self.args = args           
-
-    def Evaluate(self, symbol_table, global_symbol_table=None):
-
-        #print(f"[DEBUG] Chamando função '{self.func_name.value}'")
-        #print(f"[DEBUG] Tabela de símbolos global: {global_symbol_table.table}")
-        #print(f"[DEBUG] Tabela de símbolos local: {symbol_table.table}")
-
-
-        # Permitir a passagem da tabela global como argumento
-        if global_symbol_table is None:
-            global_symbol_table = symbol_table
-
-        #print(f"Tentando chamar a função '{self.func_name.value}'")
-        #print(f"Tabela de símbolos global antes da chamada: {global_symbol_table.table}")
-
-        # Acessa a função na tabela de símbolos global
-        if self.func_name.value not in global_symbol_table.table:
-            raise Exception(f"Erro: Função '{self.func_name.value}' não declarada.")
-
-        func_dec, func_type = global_symbol_table.getter(self.func_name.value)
-
-        if func_type != FUNCTION_TYPE:
-            raise Exception(f"Erro: '{self.func_name.value}' não é uma função.")
-        
-        #print(f"Chamada válida para '{self.func_name.value}'. Avaliando argumentos...")
-
-        # Criar uma tabela local para a função
-        local_symbol_table = SymbolTable()
-
-        if len(self.args) != len(func_dec.var_dec.identifiers):
-            raise Exception(f"Erro: Número incorreto de argumentos para função '{self.func_name.value}'.")
-
-        # Insere argumentos na tabela local
-        for i, arg in enumerate(self.args):
-            arg_value = arg.Evaluate(symbol_table)
-            param_identifier = func_dec.var_dec.identifiers[i]
-            local_symbol_table.setter(param_identifier.value, arg_value, func_dec.var_dec.var_type)
-            #print(f"Argumento '{param_identifier.value}' definido como {arg_value}.")
-
-        #print(f"Tabela local da função '{self.func_name.value}': {local_symbol_table.table}")
-        result = func_dec.statements.Evaluate(local_symbol_table, global_symbol_table)
-
-        # Garantir que sempre há um retorno da função
-        if result is None:
-            raise Exception(f"Erro: A função '{self.func_name.value}' não possui um retorno explícito.")
-        
-        #print(f"Função '{self.func_name.value}' retornou: {result}")
-        return result
-
-class Return(Node):
-    def __init__(self, expression):
-        self.expression = expression
-
-    def Evaluate(self, symbol_table, global_symbol_table=None):
-        return self.expression.Evaluate(symbol_table, global_symbol_table)
+        string_label = CodeGenerator.new_label("string")
+        CodeGenerator.emit(f"{string_label}: db '{self.value}', 0")  # Aloca a string na seção de dados
+        CodeGenerator.emit(f"MOV EBX, {string_label}")
 
 
 class Parser:
@@ -500,62 +412,10 @@ class Parser:
         self.tokenizer = tokenizer 
 
     def parseProgram(self):
-        statements = Statements()  # Criação do nó raiz para armazenar funções
-        while self.tokenizer.current_token.type != 'EOF':  # Permitir várias funções no programa
-            statements.statements.append(self.parseFunction())  # Adicionar cada função
-
-        # Adiciona a chamada para a função 'main' como último filho
-        main_call = FuncCall(Identifier("main"), [])
-        statements.statements.append(main_call)
-
-        return statements
-    
-    def parseFunction(self):
-
-        if self.tokenizer.current_token.type != 'INT_TYPE':
-            raise Exception("Erro: Esperado 'int' no início da função")
-        
-        self.tokenizer.selectNext()  
-
-        if self.tokenizer.current_token.type != 'IDENT':
-            raise Exception("Erro: Esperado nome da função após 'int'")
-        
-        func_name = Identifier(self.tokenizer.current_token.value)
-        self.tokenizer.selectNext()  
-
-        if self.tokenizer.current_token.type != 'EPARENT':
-            raise Exception("Erro: Esperado '(' após nome da função")
-        
-        self.tokenizer.selectNext()  
-        
-        parameters = []  # Lista de identificadores
-        if self.tokenizer.current_token.type != 'DPARENT':  # Verifica se há parâmetros
-            while True:
-                if self.tokenizer.current_token.type != 'INT_TYPE':
-                    raise Exception("Erro: Esperado tipo de parâmetro (int)")
-
-                self.tokenizer.selectNext()
-
-                if self.tokenizer.current_token.type != 'IDENT':
-                    raise Exception("Erro: Esperado nome do parâmetro")
-
-                param_name = Identifier(self.tokenizer.current_token.value)
-                parameters.append(param_name)
-                self.tokenizer.selectNext()
-
-                if self.tokenizer.current_token.type == 'COMMA':
-                    self.tokenizer.selectNext()  # Continua lendo outros parâmetros
-                elif self.tokenizer.current_token.type == 'DPARENT':
-                    break
-                else:
-                    raise Exception("Erro: Esperado ',' ou ')' após parâmetro")
-
-        self.tokenizer.selectNext()  # Consome o ')'
-
-        # Lê o bloco de declarações e statements
-        statements = self.parseBlock()
-
-        return FuncDec(func_name, VarDec(int, parameters), statements)
+        result = self.parseBlock()
+        if self.tokenizer.current_token.type != 'EOF':
+            raise Exception("Erro: Tokens adicionais encontrados após o fim do programa")
+        return result
 
     def parseBlock(self):
         if self.tokenizer.current_token.type != 'LBRACE':
@@ -593,29 +453,14 @@ class Parser:
         elif self.tokenizer.current_token.type == 'IDENT':
             identifier = Identifier(self.tokenizer.current_token.value)
             self.tokenizer.selectNext()
-            if self.tokenizer.current_token.type == 'EQUAL':
-                self.tokenizer.selectNext()
-                expr = self.parseRelational()
-            if self.tokenizer.current_token.type == 'SEMICOLON':
-                self.tokenizer.selectNext()
-                return Assignment(identifier, expr)
-            if self.tokenizer.current_token.type == 'EPARENT':
-                self.tokenizer.selectNext()
-                args = []
-                while self.tokenizer.current_token.type != 'DPARENT':
-                    args.append(self.parseRelational())
-                    if self.tokenizer.current_token.type == 'COMMA':
-                        self.tokenizer.selectNext()
-                self.tokenizer.selectNext()
-                return FuncCall(identifier, args)
-        
-        elif self.tokenizer.current_token.type == "RETURN":
+            if self.tokenizer.current_token.type != 'EQUAL':
+                raise Exception("Erro: Esperado '=' após identificador")
             self.tokenizer.selectNext()
             expr = self.parseRelational()
             if self.tokenizer.current_token.type != 'SEMICOLON':
-                raise Exception("Erro: Esperado ';' após 'return'")
+                raise Exception("Erro: Esperado ';' após expressão")
             self.tokenizer.selectNext()
-            return Return(expr)
+            return Assignment(identifier, expr)
         
         elif self.tokenizer.current_token.type == 'IF':
             self.tokenizer.selectNext()  
@@ -650,7 +495,7 @@ class Parser:
             # Após o 'while', pode vir um bloco ou um statement
             block = self.parseStatement() if self.tokenizer.current_token.type != 'LBRACE' else self.parseBlock()
             
-            return BinOp('WHILE', condition, block)
+            return While(condition, block)
         
         if self.tokenizer.current_token.type == 'INT_TYPE':
             var_type = int
@@ -705,10 +550,14 @@ class Parser:
         while self.tokenizer.current_token.type == "PLUS" or self.tokenizer.current_token.type == "MINUS" or self.tokenizer.current_token.type == "OR" or self.tokenizer.current_token.type == "NOT":
             op = self.tokenizer.current_token.type
             self.tokenizer.selectNext()  
-            right = self.parseTerm()
-            if result is None or right is None:
-                raise Exception(f"Erro: Operação de expressão inválida (left={result}, right={right})")
-            result = BinOp(op, result, right)
+            if op == 'PLUS':
+                result = BinOp('PLUS', result, self.parseTerm())
+            elif op == 'MINUS':
+                result = BinOp('MINUS', result, self.parseTerm())
+            elif op == 'OR':
+                result = BinOp('OR', result, self.parseTerm())
+            elif op == 'NOT':
+                result = UnOp('NOT', self.parseTerm())
         return result
 
 
@@ -718,38 +567,29 @@ class Parser:
             op = self.tokenizer.current_token.type 
             self.tokenizer.selectNext()
 
-            right = self.parseFactor()
-            if result is None or right is None:
-                raise Exception(f"Erro: Operação de termo inválida (left={result}, right={right})")
-            result = BinOp(op, result, right)
+            if op == 'MULT':
+                result = BinOp('MULT', result, self.parseFactor())
+            elif op == 'DIV':
+                divisor_node = self.parseFactor()
+                result = BinOp('DIV', result, divisor_node)
+            elif op == 'AND':
+                result = BinOp('AND', result, self.parseFactor())
+
         return result
 
     def parseFactor(self):
-
         if self.tokenizer.current_token.type == 'NUMBER':
             result = IntVal(self.tokenizer.current_token.value)
             self.tokenizer.selectNext()
             return result
-        
         elif self.tokenizer.current_token.type == 'IDENT':
-            identifier = Identifier(self.tokenizer.current_token.value)
+            result = Identifier(self.tokenizer.current_token.value)
             self.tokenizer.selectNext()
-            if self.tokenizer.current_token.type == 'EPARENT':  # Chamada de função
-                self.tokenizer.selectNext()
-                args = []
-                while self.tokenizer.current_token.type != 'DPARENT':
-                    args.append(self.parseRelational())
-                    if self.tokenizer.current_token.type == 'COMMA':
-                        self.tokenizer.selectNext()
-                self.tokenizer.selectNext()
-                return FuncCall(identifier, args)
-            return identifier
-           
+            return result
         elif self.tokenizer.current_token.type in ['PLUS', 'MINUS']:
             op_type = self.tokenizer.current_token.type
             self.tokenizer.selectNext()
             return UnOp(op_type, self.parseFactor())
-        
         elif self.tokenizer.current_token.type == 'EPARENT':  
             self.tokenizer.selectNext()
             result = self.parseRelational()
@@ -757,21 +597,9 @@ class Parser:
                 raise Exception("Erro: Esperado ')'")
             self.tokenizer.selectNext()
             return result
-        
-        elif self.tokenizer.current_token.type == 'SCANF':
-            self.tokenizer.selectNext()
-            if self.tokenizer.current_token.type != 'EPARENT':
-                raise Exception("Erro: Esperado '(' após 'scanf'")
-            self.tokenizer.selectNext()
-            if self.tokenizer.current_token.type != 'DPARENT':
-                raise Exception("Erro: Esperado ')' após 'scanf'")
-            self.tokenizer.selectNext()
-            return IntVal(int(input()))
-        
         elif self.tokenizer.current_token.type == 'NOT':
             self.tokenizer.selectNext()
             return UnOp('NOT', self.parseFactor())
-        
         elif self.tokenizer.current_token.type == 'STRING':
             result = StringVal(self.tokenizer.current_token.value)  # Cria um nó para a string
             self.tokenizer.selectNext()
@@ -784,10 +612,7 @@ class Parser:
         if self.tokenizer.current_token.type in ['EQUALEQUAL', 'LESS', 'GREATER']:
             op = self.tokenizer.current_token.type
             self.tokenizer.selectNext()
-            right = self.parseExpression()
-            if result is None or right is None:
-                raise Exception(f"Erro: Operação relacional inválida (left={result}, right={right})")
-            return BinOp(op, result, right)
+            result = BinOp(op, result, self.parseExpression())
         return result
 
 
@@ -803,17 +628,142 @@ class Parser:
 
         return result
 
+class CodeGenerator:
+    instructions = []
+    label_counter = 0
+
+    @staticmethod
+    def emit(instruction):
+        CodeGenerator.instructions.append(instruction)
+
+    @staticmethod
+    def new_label(prefix="L"):
+        label = f"{prefix}_{CodeGenerator.label_counter}"
+        CodeGenerator.label_counter += 1
+        return label
+
+    @staticmethod
+    def write_to_file(filename):
+        # Cabeçalho inicial do código Assembly
+        header = [
+            "; constantes",
+            "SYS_EXIT equ 1",
+            "SYS_READ equ 3",
+            "SYS_WRITE equ 4",
+            "STDIN equ 0",
+            "STDOUT equ 1",
+            "True equ 1",
+            "False equ 0",
+            "",
+            "segment .data",
+            "",
+            "segment .bss  ; variaveis",
+            "  res RESB 1",
+            "",
+            "section .text",
+            "  global main",
+            "",
+            "print:  ; subrotina print",
+            "  PUSH EBP ; guarda o base pointer",
+            "  MOV EBP, ESP ; estabelece um novo base pointer",
+            "  MOV EAX, [EBP+8] ; 1 argumento antes do RET e EBP",
+            "  XOR ESI, ESI",
+            "",
+            "print_dec: ; empilha todos os digitos",
+            "  MOV EDX, 0",
+            "  MOV EBX, 0x000A",
+            "  DIV EBX",
+            "  ADD EDX, '0'",
+            "  PUSH EDX",
+            "  INC ESI ; contador de digitos",
+            "  CMP EAX, 0",
+            "  JZ print_next ; quando acabar pula",
+            "  JMP print_dec",
+            "",
+            "print_next:",
+            "  CMP ESI, 0",
+            "  JZ print_exit ; quando acabar de imprimir",
+            "  DEC ESI",
+            "",
+            "  MOV EAX, SYS_WRITE",
+            "  MOV EBX, STDOUT",
+            "",
+            "  POP ECX",
+            "  MOV [res], ECX",
+            "  MOV ECX, res",
+            "",
+            "  MOV EDX, 1",
+            "  INT 0x80",
+            "  JMP print_next",
+            "",
+            "print_exit:",
+            "  POP EBP",
+            "  RET",
+            "",
+            "; subrotinas if/while",
+            "binop_je:",
+            "  JE binop_true",
+            "  JMP binop_false",
+            "",
+            "binop_jg:",
+            "  JG binop_true",
+            "  JMP binop_false",
+            "",
+            "binop_jl:",
+            "  JL binop_true",
+            "  JMP binop_false",
+            "",
+            "binop_false:",
+            "  MOV EBX, False",
+            "  JMP binop_exit",
+            "binop_true:",
+            "  MOV EBX, True",
+            "binop_exit:",
+            "  RET",
+            "",
+            "main:",
+            "",
+            "  PUSH EBP ; guarda o base pointer",
+            "  MOV EBP, ESP ; estabelece um novo base pointer",
+            ""
+        ]
+
+        footer = [
+            "  ; interrupcao de saida",
+            "  POP EBP",
+            "  MOV EAX, 1",
+            "  INT 0x80"
+        ]
+
+        # Escreve o cabeçalho e as instruções
+        with open(filename, 'w') as f:
+            for line in header:
+                f.write(line + '\n')
+            for instr in CodeGenerator.instructions:
+                f.write(instr + '\n')
+            for line in footer:
+                f.write(line + '\n')
+
+
 if __name__ == '__main__':
 
-    arquivo = sys.argv[1]
+    arquivo = sys.argv[1]  # Arquivo de entrada
 
+    # Lê o conteúdo do arquivo de entrada
     with open(arquivo, 'r') as file:
         operacao = file.read()
 
+    # Gera a AST e avalia
     ast = Parser.run(operacao)
-    global_symbol_table = SymbolTable()
-    #print("Executando AST...")
-    ast.Evaluate(global_symbol_table)
+    symbol_table = SymbolTable()
+    ast.Evaluate(symbol_table)
 
-    #print("Tabela de símbolos global final:")
-    #print(global_symbol_table.table)
+    # Remove a extensão do arquivo de entrada e adiciona '.asm'
+    asm_filename = os.path.splitext(arquivo)[0] + ".asm"
+    
+    # Gera o arquivo .asm com o mesmo nome do arquivo de entrada
+    CodeGenerator.write_to_file(asm_filename)
+
+    print(f"Código Assembly gerado no arquivo '{asm_filename}'")
+
+
