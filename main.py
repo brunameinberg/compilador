@@ -425,7 +425,7 @@ class StringVal(Node):
     def __init__(self, value):
         super().__init__(value)
 
-    def Evaluate(self, symbol_table):
+    def Evaluate(self, symbol_table, global_symbol_table=None):
         return self.value
     
 class FuncDec(Node):
