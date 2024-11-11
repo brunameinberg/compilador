@@ -80,35 +80,6 @@ class Tokenizer:
                 self.position += 2
             else:
                 raise Exception(f"Erro: Token inesperado: '{caractere}'")
-        elif caractere == 'i':
-            start = self.position
-            while self.position < len(self.source) and self.source[self.position].isalpha():
-                self.position += 1
-            identifier = self.source[start:self.position]
-            if identifier == 'if':
-                self.current_token = Token("IF", identifier)
-            elif identifier == 'int':
-                self.current_token = Token("INT_TYPE", identifier)
-            else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
-        elif caractere == 'e':
-            start = self.position
-            while self.position < len(self.source) and self.source[self.position].isalpha():
-                self.position += 1
-            identifier = self.source[start:self.position]
-            if identifier == 'else':
-                self.current_token = Token("ELSE", identifier)
-            else:
-                self.current_token = Token("IDENT", identifier)
-        elif caractere == 'w':
-            start = self.position
-            while self.position < len(self.source) and self.source[self.position].isalpha():
-                self.position += 1
-            identifier = self.source[start:self.position]
-            if identifier == 'while':
-                self.current_token = Token("WHILE", identifier)
-            else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
         elif caractere == '!':
             self.current_token = Token('NOT', '!')
             self.position += 1
@@ -122,25 +93,6 @@ class Tokenizer:
             self.current_token = Token("STRING", string_value)
             self.position = end + 1
 
-        elif caractere == 'b':
-            start = self.position
-            while self.position < len(self.source) and self.source[self.position].isalpha():
-                self.position += 1
-            identifier = self.source[start:self.position]
-            if identifier == 'bool':
-                self.current_token = Token("BOOL_TYPE", identifier)  # Identificamos o tipo bool
-            else:
-                self.current_token = Token("IDENT", identifier)
-        
-        elif caractere == 'v':
-            start = self.position
-            while self.position < len(self.source) and self.source[self.position].isalpha():
-                self.position += 1
-            identifier = self.source[start:self.position]
-            if identifier == 'void':
-                self.current_token = Token("VOID_TYPE", identifier)
-            else:
-                raise Exception(f"Erro: Token inesperado: '{identifier}'")
 
         elif caractere == ',':
             self.current_token = Token("COMMA", ',')  # Corrigimos para retornar um token de vírgula corretamente
@@ -175,6 +127,8 @@ class Tokenizer:
                 self.current_token = Token("STRING_TYPE", identifier)
             elif identifier == 'bool':
                 self.current_token = Token("BOOL_TYPE", identifier)
+            elif identifier == 'void':
+                self.current_token = Token("VOID_TYPE", identifier)
             else:
                 # Caso não seja palavra reservada, é um identificador genérico
                 self.current_token = Token("IDENT", identifier)
@@ -199,6 +153,8 @@ class SymbolTable:
 
     def getter(self, identifier):
         if identifier in self.table:
+            #print(f"[DEBUG] Recuperando identificador '{identifier}': {self.table[identifier]}")
+            
             return self.table[identifier]
         else:
             raise Exception(f"Erro: Identificador '{identifier}' não encontrado")
@@ -332,7 +288,7 @@ class Assignment(Node):
         self.expression = expression
 
     def Evaluate(self, symbol_table, global_symbol_table=None):
-        value = self.expression.Evaluate(symbol_table)
+        value = self.expression.Evaluate(symbol_table, global_symbol_table)
         _, var_type = symbol_table.getter(self.identifier.value)
         symbol_table.setter(self.identifier.value, value, var_type)
 
@@ -440,6 +396,7 @@ class FuncDec(Node):
 
         #print(f"Registrando função '{self.func_name.value}' na tabela de símbolos.")
         global_symbol_table.setter(self.func_name.value, self, FUNCTION_TYPE)
+        #print(f"Função registrada: {self.func_name.value}")
         #print(f"Tabela de símbolos global após registro: {global_symbol_table.table}")
 
    
@@ -452,20 +409,16 @@ class FuncCall(Node):
 
     def Evaluate(self, symbol_table, global_symbol_table=None):
 
+        if global_symbol_table is None:
+            raise Exception("Erro: `global_symbol_table` não pode ser `None` durante a execução.")
+
         #print(f"[DEBUG] Chamando função '{self.func_name.value}'")
         #print(f"[DEBUG] Tabela de símbolos global: {global_symbol_table.table}")
         #print(f"[DEBUG] Tabela de símbolos local: {symbol_table.table}")
 
-
-        # Permitir a passagem da tabela global como argumento
-        if global_symbol_table is None:
-            global_symbol_table = symbol_table
-
-        #print(f"Tentando chamar a função '{self.func_name.value}'")
-        #print(f"Tabela de símbolos global antes da chamada: {global_symbol_table.table}")
-
         # Acessa a função na tabela de símbolos global
         if self.func_name.value not in global_symbol_table.table:
+            #print(f"Funções registradas: {global_symbol_table.table}")
             raise Exception(f"Erro: Função '{self.func_name.value}' não declarada.")
 
         func_dec, func_type = global_symbol_table.getter(self.func_name.value)
@@ -483,7 +436,7 @@ class FuncCall(Node):
 
         # Insere argumentos na tabela local
         for i, arg in enumerate(self.args):
-            arg_value = arg.Evaluate(symbol_table)
+            arg_value = arg.Evaluate(symbol_table, global_symbol_table)
             param_identifier = func_dec.var_dec.identifiers[i]
             local_symbol_table.setter(param_identifier.value, arg_value, func_dec.var_dec.var_type)
             #print(f"Argumento '{param_identifier.value}' definido como {arg_value}.")
@@ -502,11 +455,6 @@ class Return(Node):
         self.expression = expression
 
     def Evaluate(self, symbol_table, global_symbol_table=None):
-        if global_symbol_table:
-            func_dec, _ = global_symbol_table.getter(self.func_name.value)
-            if func_dec.return_type == 'VOID_TYPE' and self.expression is not None:
-                raise Exception(f"Erro: Função '{self.func_name.value}' do tipo 'void' não pode retornar valores.")
-
         return self.expression.Evaluate(symbol_table, global_symbol_table)
 
 
@@ -831,7 +779,7 @@ if __name__ == '__main__':
     ast = Parser.run(operacao)
     global_symbol_table = SymbolTable()
     #print("Executando AST...")
-    ast.Evaluate(global_symbol_table)
+    ast.Evaluate(global_symbol_table, global_symbol_table=global_symbol_table)
 
     #print("Tabela de símbolos global final:")
     #print(global_symbol_table.table)
